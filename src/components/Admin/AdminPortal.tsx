@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Package, 
   TrendingUp, 
@@ -19,7 +19,9 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { 
   Order, 
@@ -40,6 +42,7 @@ import { AdminSystemSettingsTab } from './AdminSystemSettingsTab';
 import { AdminWaLogsTab } from './AdminWaLogsTab';
 import { AdminPayoutsTab } from './AdminPayoutsTab';
 import { AdminWorkerSalaryTab } from './AdminWorkerSalaryTab';
+import { TACTICAL_AVATARS } from '../Customer/CustomerProfileModal';
 
 interface AdminPortalProps {
   currentUser: AdminUser;
@@ -97,6 +100,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Self Profile & Password Modal
   const [isSelfEditOpen, setIsSelfEditOpen] = useState<boolean>(false);
   const [selfName, setSelfName] = useState<string>(currentUser.name);
+  const [selfAvatar, setSelfAvatar] = useState<string>(currentUser.avatar || '');
   const [selfUsername, setSelfUsername] = useState<string>(currentUser.username);
   const [selfPassword, setSelfPassword] = useState<string>(
     currentUser.password || (currentUser.role === 'superadmin' ? 'superadmin123' : 'admin123')
@@ -104,16 +108,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [showSelfPassword, setShowSelfPassword] = useState<boolean>(false);
   const [selfErrorMsg, setSelfErrorMsg] = useState<string | null>(null);
   const [selfSuccessMsg, setSelfSuccessMsg] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isSuperadmin = currentUser.role === 'superadmin';
 
   const handleOpenSelfEdit = () => {
     setSelfName(currentUser.name);
+    setSelfAvatar(currentUser.avatar || '');
     setSelfUsername(currentUser.username);
     setSelfPassword(currentUser.password || (currentUser.role === 'superadmin' ? 'superadmin123' : 'admin123'));
     setShowSelfPassword(false);
     setSelfErrorMsg(null);
     setIsSelfEditOpen(true);
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setSelfErrorMsg('Ukuran foto maksimal 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setSelfAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSaveSelfEdit = (e: React.FormEvent) => {
@@ -143,12 +166,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const updatedUser: AdminUser = {
       ...currentUser,
       name: cleanName,
+      avatar: selfAvatar.trim(),
       username: cleanUsername,
       password: cleanPassword,
     };
 
     onUpdateAdmin(updatedUser);
-    setSelfSuccessMsg('Profil dan Password Anda berhasil diperbarui!');
+    setSelfSuccessMsg('Profil dan Foto Profil Anda berhasil diperbarui!');
     setTimeout(() => {
       setSelfSuccessMsg(null);
       setIsSelfEditOpen(false);
@@ -262,11 +286,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 type="button"
                 onClick={handleOpenSelfEdit}
                 className="flex items-center space-x-2 p-1.5 sm:px-3 sm:py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-amber-500/40 rounded-xl text-left transition-all cursor-pointer group"
-                title="Klik untuk Edit Nama & Ganti Password Akun Anda"
+                title="Klik untuk Edit Foto, Nama & Ganti Password Akun Anda"
               >
-                <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-tactical font-bold text-xs">
-                  {currentUser.name.charAt(0)}
-                </div>
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-7 h-7 rounded-lg object-cover border border-amber-500/40 shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-tactical font-bold text-xs shrink-0">
+                    {currentUser.name.charAt(0)}
+                  </div>
+                )}
                 <div className="text-left hidden sm:block">
                   <div className="flex items-center space-x-1">
                     <span className="text-xs font-bold text-white block leading-tight group-hover:text-amber-300 transition-colors">
@@ -457,6 +489,84 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <span>{selfSuccessMsg}</span>
                 </div>
               )}
+
+              {/* Photo Profil / Avatar Admin */}
+              <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center space-x-1.5">
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span>Foto Profil Admin</span>
+                  </label>
+                  {selfAvatar && (
+                    <button
+                      type="button"
+                      onClick={() => setSelfAvatar('')}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 transition-colors"
+                    >
+                      Hapus Foto (Gunakan Inisial)
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-3.5">
+                  <div className="relative group shrink-0">
+                    {selfAvatar ? (
+                      <img
+                        src={selfAvatar}
+                        alt="Avatar Preview"
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-amber-400 font-tactical font-black text-xl">
+                        {selfName.charAt(0) || 'A'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleAvatarUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 border border-zinc-700 hover:border-amber-500/40 transition-all cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Unggah Foto dari Galeri</span>
+                    </button>
+                    <p className="text-[10px] text-zinc-500">Maks. 2MB (JPG, PNG, WebP)</p>
+                  </div>
+                </div>
+
+                {/* Preset Tactical Avatars */}
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                    Atau Pilih Avatar Operator Taktis:
+                  </span>
+                  <div className="grid grid-cols-6 gap-2">
+                    {TACTICAL_AVATARS.map((av) => (
+                      <button
+                        key={av.id}
+                        type="button"
+                        onClick={() => setSelfAvatar(av.url)}
+                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all cursor-pointer ${
+                          selfAvatar === av.url
+                            ? 'border-amber-500 ring-2 ring-amber-500/40 scale-105'
+                            : 'border-zinc-800 hover:border-zinc-600'
+                        }`}
+                        title={av.name}
+                      >
+                        <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1">

@@ -17,11 +17,12 @@ export type PaymentMethod =
   | 'bca' 
   | 'mandiri' 
   | 'bni' 
-  | 'bri';
+  | 'bri'
+  | 'manual';
 
-export type PaymentStatus = 'pending' | 'paid' | 'expired' | 'failed';
+export type PaymentStatus = 'pending' | 'verifying' | 'paid' | 'expired' | 'failed';
 
-export type UserRole = 'superadmin' | 'admin';
+export type UserRole = 'superadmin' | 'admin' | 'user';
 
 export type PayoutStatus = 'pending' | 'processing' | 'transferred' | 'rejected';
 
@@ -116,6 +117,7 @@ export interface Order {
   
   // Account details
   gameNickname: string;
+  gamePassword?: string;
   loginMethod: 'Level Infinite' | 'Facebook' | 'Google' | 'VK';
   gameUserId?: string;
   accountNotes?: string;
@@ -132,6 +134,7 @@ export interface Order {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   paidAt?: string;
+  paymentProofUrl?: string;
   
   // Execution details
   orderStatus: OrderStatus;
@@ -187,6 +190,9 @@ export interface SystemSettings {
   csWorkingHours: string;
   autoVerifyPayment: boolean;
   maintenanceMode: boolean;
+  maintenanceTitle?: string;
+  maintenanceMessage?: string;
+  maintenanceEstimatedEnd?: string;
   announcementText: string;
   runningTicker: string;
   whatsappGatewayApiKey: string;

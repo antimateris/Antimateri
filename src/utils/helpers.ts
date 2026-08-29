@@ -116,6 +116,15 @@ export const getPaymentMethodLabel = (method: string): string => {
   return map[method] || method.toUpperCase();
 };
 
+export const maskPhoneNumber = (phone?: string): string => {
+  if (!phone) return '-';
+  const clean = phone.trim();
+  if (clean.length <= 6) return '••••••';
+  const start = clean.slice(0, 4);
+  const end = clean.slice(-3);
+  return `${start}••••${end}`;
+};
+
 export const getStatusBadge = (status: string): { label: string; bg: string; text: string; border: string } => {
   switch (status) {
     case 'unpaid':

@@ -7,7 +7,10 @@ import {
   Sliders,
   Flame,
   Gift,
-  X
+  X,
+  ArrowRight,
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 import { 
   ServiceType, 
@@ -151,15 +154,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   };
 
   const { basePrice, packageName } = calculateBasePrice();
-
-  let addOnsTotal = 0;
-  if (isPrioritySpeed) addOnsTotal += priceConfig.prioritySpeedFee;
-  if (isStreamDiscord) addOnsTotal += priceConfig.streamDiscordFee;
-  if (isSafeLootOnly) addOnsTotal += priceConfig.safeLootGuaranteeFee;
-
-  const subTotal = basePrice + addOnsTotal;
-  const uniqueCode = generateUniqueCode();
-  const finalTotal = Math.max(0, subTotal - appliedDiscount);
+  const finalTotal = Math.max(0, basePrice - appliedDiscount);
 
   // Handle package selection - open account modal
   const handlePackageSelected = () => {
@@ -169,6 +164,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
   // Handle account details saved - create order and show payment
   const handleAccountDetailsSaved = (details: {
     gameNickname: string;
+    gamePassword?: string;
     gameUserId: string;
     loginMethod: string;
     accountNotes: string;
@@ -202,12 +198,13 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       mandorMap: mandorSelectedMap,
       mandorPlayMode,
       gameNickname: details.gameNickname,
+      gamePassword: details.gamePassword,
       loginMethod: details.loginMethod as any,
       gameUserId: details.gameUserId,
       accountNotes: details.accountNotes,
       customerName: details.customerName,
       customerWhatsApp: details.customerWhatsApp,
-      basePrice: subTotal,
+      basePrice,
       discount: appliedDiscount,
       uniqueCode: 0,
       totalPrice: finalTotal,
@@ -217,12 +214,11 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       createdAt: new Date().toISOString(),
       currentProgressPercent: 0,
       progressHistory: [],
-      isPrioritySpeed,
-      isStreamDiscord,
-      isSafeLootOnly,
+      isPrioritySpeed: false,
+      isStreamDiscord: false,
+      isSafeLootOnly: false
     };
 
-    // Show payment modal
     setPaymentOrder(newOrder);
   };
 
@@ -231,7 +227,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
   return (
     <>
-      <div id="order-form-container" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      <div id="order-form-container" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 pb-32 space-y-6">
         
         {/* Customer Membership Strip */}
         {currentCustomer ? (
@@ -359,7 +355,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       onClick={() => {
                         setIsCustomKoen(false);
                         setSelectedKoenPkgId(pkg.id);
-                        handlePackageSelected();
                       }}
                       className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         isSelected
@@ -369,7 +364,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     >
                       {pkg.popular && (
                         <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                          POPULAR ðŸ”¥
+                          POPULAR 🔥
                         </span>
                       )}
 
@@ -412,7 +407,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                 <div
                   onClick={() => {
                     setIsCustomKoen(true);
-                    handlePackageSelected();
                   }}
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                     isCustomKoen
@@ -458,7 +452,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       Tentukan Jumlah: <span className="text-amber-400 text-lg font-tactical">{customKoenAmount}M</span>
                     </label>
                     <span className="text-xs text-emerald-400 font-semibold">
-                      {customKoenAmount >= 15 ? 'ðŸ”¥ Diskon 15%' : customKoenAmount >= 8 ? 'âœ¨ Diskon 10%' : 'Standar'}
+                      {customKoenAmount >= 15 ? '🔥 Diskon 15%' : customKoenAmount >= 8 ? '✨ Diskon 10%' : 'Standar'}
                     </span>
                   </div>
 
@@ -583,7 +577,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       key={pkg.id}
                       onClick={() => {
                         setSelectedMandorPkgId(pkg.id);
-                        handlePackageSelected();
                       }}
                       className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         isSelected
@@ -593,7 +586,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     >
                       {pkg.popular && (
                         <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                          RECOMMENDED ðŸ”¥
+                          RECOMMENDED 🔥
                         </span>
                       )}
 
@@ -636,69 +629,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({
           </div>
         )}
 
-        {/* Add-ons Section */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-lg">
-          <label className="block text-xs font-semibold uppercase text-zinc-400 mb-3">
-            OPSI TAMBAHAN (ADD-ONS):
-          </label>
-          
-          <div className="space-y-2.5">
-            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={isPrioritySpeed}
-                  onChange={(e) => setIsPrioritySpeed(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
-                />
-                <div>
-                  <span className="text-xs sm:text-sm font-bold text-white">Prioritas Ekspres</span>
-                  <p className="text-[11px] text-zinc-400">Langsung dikerjakan tanpa antrean</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-amber-400">
-                +{formatRupiah(priceConfig.prioritySpeedFee)}
-              </span>
-            </label>
-
-            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={isStreamDiscord}
-                  onChange={(e) => setIsStreamDiscord(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
-                />
-                <div>
-                  <span className="text-xs sm:text-sm font-bold text-white">Live Stream Discord</span>
-                  <p className="text-[11px] text-zinc-400">Tonton langsung di Discord server VIP</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-amber-400">
-                +{formatRupiah(priceConfig.streamDiscordFee)}
-              </span>
-            </label>
-
-            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  checked={isSafeLootOnly}
-                  onChange={(e) => setIsSafeLootOnly(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
-                />
-                <div>
-                  <span className="text-xs sm:text-sm font-bold text-white">Garansi Safe Extraction</span>
-                  <p className="text-[11px] text-zinc-400">Garansi ganti rugi 100% jika ada gear hilang</p>
-                </div>
-              </div>
-              <span className="text-xs font-bold text-emerald-400">
-                +{formatRupiah(priceConfig.safeLootGuaranteeFee)} (Included)
-              </span>
-            </label>
-          </div>
-        </div>
-
         {/* Summary Section */}
         <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/30 rounded-2xl p-5 sm:p-7 shadow-2xl">
           <div className="flex items-center justify-between mb-5 pb-3 border-b border-zinc-800">
@@ -711,7 +641,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               </p>
             </div>
             <span className="text-xs bg-amber-500/20 text-amber-300 font-bold px-2.5 py-1 rounded border border-amber-500/40">
-              100% AMAN
+              100% AMAN & BERGARANSI
             </span>
           </div>
 
@@ -721,30 +651,9 @@ export const OrderForm: React.FC<OrderFormProps> = ({
               <span className="font-semibold text-white">{formatRupiah(basePrice)}</span>
             </div>
 
-            {isPrioritySpeed && (
-              <div className="flex justify-between text-zinc-400">
-                <span>Add-on Prioritas</span>
-                <span>+{formatRupiah(priceConfig.prioritySpeedFee)}</span>
-              </div>
-            )}
-
-            {isStreamDiscord && (
-              <div className="flex justify-between text-zinc-400">
-                <span>Add-on Live Stream</span>
-                <span>+{formatRupiah(priceConfig.streamDiscordFee)}</span>
-              </div>
-            )}
-
-            {isSafeLootOnly && (
-              <div className="flex justify-between text-zinc-400">
-                <span>Garansi Safe Extraction</span>
-                <span>+{formatRupiah(priceConfig.safeLootGuaranteeFee)}</span>
-              </div>
-            )}
-
             {appliedDiscount > 0 && (
               <div className="flex justify-between text-emerald-400 font-semibold">
-                <span>Diskon Kode Promo</span>
+                <span>Diskon Promo / Voucher</span>
                 <span>-{formatRupiah(appliedDiscount)}</span>
               </div>
             )}
@@ -757,9 +666,71 @@ export const OrderForm: React.FC<OrderFormProps> = ({
             </div>
           </div>
 
-          <p className="text-center text-[11px] text-zinc-500 mt-4">
-            ðŸ”’ Notifikasi & resi invoice akan dikirim ke WhatsApp Anda
+          <button
+            type="button"
+            onClick={handlePackageSelected}
+            className="w-full mt-4 py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-black font-extrabold text-base font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center space-x-2 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+          >
+            <Flame className="w-5 h-5 fill-black text-black" />
+            <span>LANJUTKAN PEMESANAN ({formatRupiah(finalTotal)})</span>
+            <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+          </button>
+
+          <p className="text-center text-[11px] text-zinc-500 mt-3">
+            🔒 Notifikasi & resi invoice akan dikirim ke WhatsApp Anda
           </p>
+        </div>
+      </div>
+
+      {/* Floating Bottom Bar (Pop Up Kecil di Bawah Layar) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-md border-t border-amber-500/40 px-4 py-3 shadow-[0_-10px_25px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom duration-300">
+        <div className="max-w-5xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
+          {/* Left: Product & Price details */}
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center shrink-0 text-amber-400">
+              {serviceType === 'joki_koen' ? (
+                <Coins className="w-5 h-5" />
+              ) : (
+                <Users className="w-5 h-5" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  {serviceType === 'joki_koen' ? 'Joki Koen' : 'Joki Mandor'}
+                </span>
+                <span className="text-xs text-zinc-400 truncate hidden sm:inline">
+                  {serviceType === 'joki_mandor' ? mandorSelectedMap : 'Arena Breakout'}
+                </span>
+              </div>
+              <div className="text-sm font-bold text-white font-tactical tracking-wide truncate">
+                {packageName}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Total Price & Lanjutkan Button */}
+          <div className="flex items-center space-x-3 sm:space-x-4 shrink-0">
+            <div className="text-right hidden sm:block">
+              <div className="text-[10px] uppercase font-semibold text-zinc-400">Total Harga:</div>
+              <div className="text-base sm:text-lg font-black text-amber-400 font-tactical">
+                {formatRupiah(finalTotal)}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="btn-floating-continue"
+              onClick={handlePackageSelected}
+              className="py-2.5 sm:py-3 px-5 sm:px-6 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-black font-extrabold text-sm sm:text-base font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/30 flex items-center space-x-2 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+            >
+              <span>Lanjutkan</span>
+              <span className="sm:hidden text-xs bg-black/20 text-black px-1.5 py-0.5 rounded font-mono font-bold">
+                {formatRupiah(finalTotal)}
+              </span>
+              <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
       </div>
 

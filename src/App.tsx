@@ -5,11 +5,11 @@ import { OrderForm } from './components/OrderForm';
 import { TrackingPage } from './components/TrackingPage';
 import { PriceCatalogPage } from './components/PriceCatalogPage';
 import { CustomerServicePage } from './components/CustomerServicePage';
-import { CustomerServiceWidget } from './components/CustomerServiceWidget';
 import { PaymentModal } from './components/PaymentModal';
 import { AdminLoginModal } from './components/Admin/AdminLoginModal';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { Footer } from './components/Footer';
+import { MaintenanceScreen } from './components/MaintenanceScreen';
 
 // Customer Gamification Components
 import { CustomerAuthModal } from './components/Customer/CustomerAuthModal';
@@ -493,8 +493,19 @@ export default function App() {
   };
 
   // Handler: Update Order from Admin
-  const handleUpdateOrder = (updatedOrder: Order) => {
+  const handleUpdateOrder = (incomingOrder: Order) => {
+    let updatedOrder = { ...incomingOrder };
     const previousOrder = orders.find((o) => o.id === updatedOrder.id);
+
+    // AUTO-WIPE CREDENTIALS PROTECTION:
+    // When order is completed (100%) or cancelled, permanently wipe customer's game password from database
+    if (
+      (updatedOrder.orderStatus === 'completed' || updatedOrder.orderStatus === 'cancelled') &&
+      updatedOrder.gamePassword &&
+      updatedOrder.gamePassword !== '[TELAH DIHAPUS OTOMATIS - SELESAI]'
+    ) {
+      updatedOrder.gamePassword = '[TELAH DIHAPUS OTOMATIS - SELESAI]';
+    }
     
     setOrders((prev) => prev.map((o) => (o.id === updatedOrder.id ? updatedOrder : o)));
     saveOrderToFirestore(updatedOrder);
@@ -693,6 +704,16 @@ export default function App() {
           onUpdatePayout={handleUpdatePayout}
           onDeletePayout={handleDeletePayout}
         />
+      ) : settings.maintenanceMode && !currentAdminUser ? (
+        /* Global Maintenance Mode Splash Screen for all Public Users */
+        <MaintenanceScreen
+          settings={settings}
+          onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
+          onTrackOrder={(query) => {
+            setTrackingInitialQuery(query);
+            setActiveTab('track');
+          }}
+        />
       ) : (
         /* Customer-Facing Experience */
         <>
@@ -831,12 +852,6 @@ export default function App() {
               }
             }}
             onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
-          />
-
-          {/* Floating Customer Service WhatsApp Widget */}
-          <CustomerServiceWidget
-            settings={settings}
-            onNavigateTrack={() => setActiveTab('track')}
           />
         </>
       )}

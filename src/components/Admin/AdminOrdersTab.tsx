@@ -20,7 +20,11 @@ import {
   Bot,
   Copy,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Eye,
+  EyeOff,
+  Lock,
+  Shield
 } from 'lucide-react';
 import { 
   Order, 
@@ -73,15 +77,43 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
   const [waCustomNote, setWaCustomNote] = useState<string>('');
   const [copiedBriefing, setCopiedBriefing] = useState<boolean>(false);
 
+  // Manual payment verification modal
+  const [inspectProofOrder, setInspectProofOrder] = useState<Order | null>(null);
+  const [showGamePasswordMap, setShowGamePasswordMap] = useState<Record<string, boolean>>({});
+
+  const toggleShowGamePassword = (orderId: string) => {
+    setShowGamePasswordMap(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  };
+
+  // Filter visible orders based on role:
+  // Admin biasa hanya dapat melihat order yang sudah diverifikasi lunas oleh Superadmin!
+  const isSuperadmin = currentUser.role === 'superadmin';
+  const pendingVerificationCount = orders.filter(
+    (o) => o.paymentStatus === 'verifying' || o.orderStatus === 'verifying'
+  ).length;
+
+  const roleAccessibleOrders = isSuperadmin 
+    ? orders 
+    : orders.filter((o) => o.paymentStatus === 'paid');
+
   // Filter orders
-  const filteredOrders = orders.filter((o) => {
+  const filteredOrders = roleAccessibleOrders.filter((o) => {
     const matchSearch =
       o.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.gameNickname.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       o.customerWhatsApp.includes(searchTerm);
 
-    const matchStatus = statusFilter === 'all' || o.orderStatus === statusFilter;
+    const matchStatus = 
+      statusFilter === 'all' 
+        ? true 
+        : statusFilter === 'need_verify' 
+        ? (o.paymentStatus === 'verifying' || o.orderStatus === 'verifying')
+        : o.orderStatus === statusFilter;
+
     const matchService = serviceFilter === 'all' || o.serviceType === serviceFilter;
 
     return matchSearch && matchStatus && matchService;
@@ -185,6 +217,22 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          {/* Superadmin shortcut button for Pending Verification */}
+          {isSuperadmin && pendingVerificationCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter(statusFilter === 'need_verify' ? 'all' : 'need_verify')}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                statusFilter === 'need_verify'
+                  ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20'
+                  : 'bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:bg-amber-500/25'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+              <span>Verifikasi Bukti ({pendingVerificationCount})</span>
+            </button>
+          )}
+
           {/* Status Filter */}
           <select
             id="admin-filter-status"
@@ -192,9 +240,10 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500"
           >
-            <option value="all">Semua Status ({orders.length})</option>
-            <option value="unpaid">Menunggu Bayar</option>
-            <option value="queued">Dalam Antrean</option>
+            <option value="all">Semua Status ({roleAccessibleOrders.length})</option>
+            {isSuperadmin && <option value="need_verify">⚡ Butuh Verifikasi Pembayaran ({pendingVerificationCount})</option>}
+            {isSuperadmin && <option value="unpaid">Menunggu Bayar</option>}
+            <option value="queued">Dalam Antrean (Lunas)</option>
             <option value="in_progress">Sedang Dikerjakan</option>
             <option value="completed">Selesai 100%</option>
             <option value="cancelled">Dibatalkan</option>
@@ -214,6 +263,21 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
         </div>
 
       </div>
+
+      {/* Role Notice for Regular Admin */}
+      {!isSuperadmin && (
+        <div className="p-3.5 rounded-2xl bg-zinc-950 border border-zinc-800 flex items-center justify-between text-xs text-zinc-300">
+          <div className="flex items-center space-x-2">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              <strong>Mode Akses Admin:</strong> Menampilkan pesanan yang telah <strong>diverifikasi lunas</strong> oleh Superadmin untuk siap dikerjakan worker.
+            </span>
+          </div>
+          <span className="text-[10px] text-zinc-500 bg-zinc-900 px-2 py-1 rounded font-mono">
+            Role: Admin
+          </span>
+        </div>
+      )}
 
       {/* Orders Table List */}
       <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl overflow-hidden">
@@ -246,6 +310,8 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
             <tbody className="divide-y divide-zinc-800/80 text-zinc-300">
               {filteredOrders.map((ord) => {
                 const badge = getStatusBadge(ord.orderStatus);
+                const isPasswordShown = !!showGamePasswordMap[ord.id];
+
                 return (
                   <tr key={ord.id} className="hover:bg-zinc-950/40 transition-colors">
                     
@@ -284,6 +350,31 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                       <div className="text-[11px] text-zinc-400">
                         Login: <span className="text-amber-400 font-semibold">{ord.loginMethod}</span> • WA: {ord.customerWhatsApp}
                       </div>
+                      {ord.gamePassword && (
+                        <div className="mt-1 flex items-center space-x-1.5 bg-zinc-950/80 px-2 py-0.5 rounded border border-zinc-800 w-fit">
+                          <Lock className="w-3 h-3 text-zinc-400" />
+                          <span className="text-[10px] text-zinc-400">Pass:</span>
+                          {ord.gamePassword.startsWith('[TELAH DIHAPUS') ? (
+                            <span className="font-mono text-[10px] text-emerald-400 font-semibold italic">
+                              🔒 Dihapus (Order Selesai)
+                            </span>
+                          ) : (
+                            <>
+                              <span className="font-mono text-[11px] text-amber-300 font-semibold">
+                                {isPasswordShown ? ord.gamePassword : '••••••••'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleShowGamePassword(ord.id)}
+                                className="p-0.5 text-zinc-400 hover:text-white transition-colors"
+                                title={isPasswordShown ? 'Sembunyikan Password' : 'Lihat Password'}
+                              >
+                                {isPasswordShown ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
                       {ord.accountNotes && (
                         <div className="text-[10px] text-zinc-500 italic truncate max-w-xs mt-0.5">
                           Note: "{ord.accountNotes}"
@@ -299,13 +390,27 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                       <div className="flex items-center space-x-1 mt-0.5">
                         <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded uppercase ${
                           ord.paymentStatus === 'paid'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/20 text-amber-400'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : ord.paymentStatus === 'verifying'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse'
+                            : 'bg-zinc-800 text-zinc-400'
                         }`}>
-                          {ord.paymentStatus === 'paid' ? 'Lunas' : 'Belum Bayar'}
+                          {ord.paymentStatus === 'paid' ? 'Lunas' : ord.paymentStatus === 'verifying' ? 'Verifikasi Bukti' : 'Belum Bayar'}
                         </span>
                         <span className="text-[10px] text-zinc-500 uppercase">{ord.paymentMethod}</span>
                       </div>
+
+                      {/* Tombol Khusus Verifikasi Bukti untuk Superadmin */}
+                      {isSuperadmin && (ord.paymentStatus === 'verifying' || ord.paymentProofUrl) && (
+                        <button
+                          type="button"
+                          onClick={() => setInspectProofOrder(ord)}
+                          className="mt-1 text-[10px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 font-semibold underline cursor-pointer"
+                        >
+                          <Camera className="w-3 h-3 text-amber-400" />
+                          <span>{ord.paymentProofUrl ? 'Periksa Bukti (Superadmin)' : 'Verifikasi Pembayaran'}</span>
+                        </button>
+                      )}
                     </td>
 
                     {/* Status & Progress */}
@@ -761,6 +866,137 @@ export const AdminOrdersTab: React.FC<AdminOrdersTabProps> = ({
                   <Send className="w-4 h-4" />
                   <span>{waTargetMode === 'worker_group' ? 'Kirim ke Bot / Grup WA' : 'Kirim ke WhatsApp'}</span>
                 </a>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Manual Payment Proof Inspector & Approver */}
+      {inspectProofOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-zinc-900 border-2 border-amber-500/50 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-6 py-5 border-b border-zinc-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-tactical text-lg font-bold text-white uppercase">
+                    VERIFIKASI BUKTI TRANSFER PEMBAYARAN
+                  </h3>
+                  <p className="text-xs text-amber-400 font-mono">
+                    Invoice: {inspectProofOrder.invoiceNumber} • Pelanggan: {inspectProofOrder.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspectProofOrder(null)}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto text-xs">
+              
+              {/* Order Info Bar */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800">
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Total Tagihan:</span>
+                  <span className="text-amber-400 font-bold text-sm font-tactical">{formatRupiah(inspectProofOrder.totalPrice)}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Metode Bayar:</span>
+                  <span className="text-white font-semibold uppercase">{inspectProofOrder.paymentMethod}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">Nickname Game:</span>
+                  <span className="text-amber-300 font-bold font-mono">{inspectProofOrder.gameNickname}</span>
+                </div>
+                <div>
+                  <span className="text-zinc-500 block text-[10px] uppercase">No. WhatsApp:</span>
+                  <span className="text-white font-mono">{inspectProofOrder.customerWhatsApp}</span>
+                </div>
+              </div>
+
+              {/* Foto Bukti Transfer */}
+              <div className="space-y-2">
+                <span className="text-zinc-300 font-bold uppercase tracking-wider text-[11px] block">
+                  Foto Bukti Struk / Transfer Pelanggan (Maks 2MB):
+                </span>
+                
+                {inspectProofOrder.paymentProofUrl ? (
+                  <div className="rounded-2xl overflow-hidden border border-zinc-700 bg-zinc-950 flex items-center justify-center p-3">
+                    <img
+                      src={inspectProofOrder.paymentProofUrl}
+                      alt="Bukti Transfer"
+                      className="max-h-96 object-contain rounded-xl w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-zinc-500 bg-zinc-950 rounded-2xl border border-zinc-800">
+                    Pelanggan belum mengunggah foto bukti transfer.
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-zinc-800 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date().toISOString();
+                    const updated: Order = {
+                      ...inspectProofOrder,
+                      paymentStatus: 'paid',
+                      orderStatus: 'queued',
+                      progressHistory: [
+                        ...(inspectProofOrder.progressHistory || []),
+                        {
+                          timestamp: now,
+                          status: 'paid',
+                          description: `Pembayaran ${formatRupiah(inspectProofOrder.totalPrice)} telah diverifikasi dan disetujui secara manual oleh ${currentUser.name}. Pesanan masuk ke antrean worker.`
+                        }
+                      ]
+                    };
+                    onUpdateOrder(updated);
+                    onSendWhatsAppNotification(updated, 'paymentReceived', 'Pembayaran Anda telah diverifikasi dan disetujui oleh Owner.');
+                    setInspectProofOrder(null);
+                  }}
+                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-emerald-600/25 flex items-center justify-center space-x-2 transition-all cursor-pointer text-xs sm:text-sm"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>SETUJUI PEMBAYARAN (LUNAS & MASUK ANTREAN)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const now = new Date().toISOString();
+                    const updated: Order = {
+                      ...inspectProofOrder,
+                      paymentStatus: 'pending',
+                      progressHistory: [
+                        ...(inspectProofOrder.progressHistory || []),
+                        {
+                          timestamp: now,
+                          status: 'unpaid',
+                          description: `Bukti transfer ditolak oleh ${currentUser.name}. Silakan kirimkan bukti transfer yang valid.`
+                        }
+                      ]
+                    };
+                    onUpdateOrder(updated);
+                    setInspectProofOrder(null);
+                  }}
+                  className="px-4 py-3 bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 font-bold rounded-xl transition-all cursor-pointer text-xs"
+                >
+                  Tolak Bukti
+                </button>
               </div>
 
             </div>

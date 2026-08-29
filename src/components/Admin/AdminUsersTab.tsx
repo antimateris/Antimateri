@@ -35,6 +35,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   onUpdateAdmin,
   onDeleteAdmin,
 }) => {
+  // Filter tab
+  const [roleFilter, setRoleFilter] = useState<'all' | 'superadmin' | 'admin' | 'user'>('all');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+
   // Add Admin Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
@@ -55,8 +59,15 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   const [editErrorMsg, setEditErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Copy feedback
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Masked Password Visibility per Card
+  const [unmaskedPasswords, setUnmaskedPasswords] = useState<Record<string, boolean>>({});
+
+  const toggleUnmaskPassword = (adminId: string) => {
+    setUnmaskedPasswords((prev) => ({
+      ...prev,
+      [adminId]: !prev[adminId],
+    }));
+  };
 
   const handleOpenEdit = (adm: AdminUser) => {
     setEditingAdmin(adm);
@@ -67,6 +78,17 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     setEditActive(adm.active);
     setShowEditPassword(false);
     setEditErrorMsg(null);
+  };
+
+  // Quick promote user to admin
+  const handlePromoteToAdmin = (adm: AdminUser) => {
+    const updated: AdminUser = {
+      ...adm,
+      role: 'admin',
+    };
+    onUpdateAdmin(updated);
+    setSuccessMsg(`Role "${adm.name}" (@${adm.username}) berhasil dinaikkan menjadi Admin!`);
+    setTimeout(() => setSuccessMsg(null), 3500);
   };
 
   const handleSaveEdit = (e: React.FormEvent) => {
@@ -90,7 +112,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
     // Check if username taken by another admin
     if (admins.some((a) => a.id !== editingAdmin.id && a.username.toLowerCase() === cleanUsername)) {
-      setEditErrorMsg('Username tersebut sudah digunakan oleh admin lain');
+      setEditErrorMsg('Username tersebut sudah digunakan oleh pengguna lain');
       return;
     }
 
@@ -105,7 +127,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
     onUpdateAdmin(updatedAdmin);
     setEditingAdmin(null);
-    setSuccessMsg(`Berhasil memperbarui data akun & password "${cleanName}"!`);
+    setSuccessMsg(`Berhasil memperbarui data akun & role "${cleanName}"!`);
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
@@ -115,7 +137,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
     const cleanUsername = username.trim().toLowerCase();
     const cleanName = name.trim();
-    const cleanPassword = password.trim() || 'admin123';
+    const cleanPassword = password.trim() || 'password123';
 
     if (!cleanUsername || !cleanName) {
       setErrorMsg('Username dan Nama lengkap wajib diisi');
@@ -123,7 +145,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     }
 
     if (admins.some((a) => a.username.toLowerCase() === cleanUsername)) {
-      setErrorMsg('Username tersebut sudah digunakan oleh admin lain');
+      setErrorMsg('Username tersebut sudah digunakan oleh akun lain');
       return;
     }
 
@@ -144,7 +166,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
     setName('');
     setPassword('');
     setRole('admin');
-    setSuccessMsg(`Admin baru "${cleanName}" berhasil ditambahkan!`);
+    setSuccessMsg(`Akun baru "${cleanName}" (${role.toUpperCase()}) berhasil dibuat!`);
     setTimeout(() => setSuccessMsg(null), 3500);
   };
 
@@ -161,34 +183,35 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
       alert('Anda tidak dapat menghapus akun Anda sendiri');
       return;
     }
-    if (window.confirm(`Yakin ingin menghapus akses admin "${adm.name}" (${adm.username})?`)) {
+    if (window.confirm(`Yakin ingin menghapus akun "${adm.name}" (${adm.username})?`)) {
       onDeleteAdmin(adm.id);
     }
   };
 
-  const handleCopyPassword = (adm: AdminUser) => {
-    const pwd = adm.password || (adm.role === 'superadmin' ? 'superadmin123' : 'admin123');
-    navigator.clipboard.writeText(pwd);
-    setCopiedId(adm.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  const filteredAdmins = admins.filter((adm) => {
+    const matchRole = roleFilter === 'all' || adm.role === roleFilter;
+    const matchSearch = 
+      adm.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      adm.username.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchRole && matchSearch;
+  });
 
   return (
     <div className="space-y-6">
       
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-lg">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 shadow-lg">
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-xs bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded border border-amber-500/30">
               SUPERADMIN CONSOLE
             </span>
             <h2 className="text-xl font-bold font-tactical text-white uppercase tracking-wider">
-              MANAJEMEN AKUN ADMIN & GANTI PASSWORD
+              MANAJEMEN AKUN, TIM & ROLE AKSES
             </h2>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            Ganti nama tampilan, atur username login, perbarui password Admin & Superadmin, serta kelola hak akses tim joki.
+            Buat akun User/Admin baru, naikkan role User ke Admin, ubah level otorisasi, dan perbarui password dengan keamanan tertutup.
           </p>
         </div>
 
@@ -199,11 +222,69 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             setShowAddPassword(false);
             setErrorMsg(null);
           }}
-          className="flex items-center space-x-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase tracking-wider text-xs rounded-xl shadow-lg transition-all cursor-pointer"
+          className="flex items-center space-x-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase tracking-wider text-xs rounded-xl shadow-lg transition-all cursor-pointer whitespace-nowrap"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Tambah Admin Baru</span>
+          <span>Buat Akun Baru (User/Admin)</span>
         </button>
+      </div>
+
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-900/60 p-3.5 rounded-2xl border border-zinc-800">
+        <div className="flex items-center space-x-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+          <button
+            type="button"
+            onClick={() => setRoleFilter('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              roleFilter === 'all'
+                ? 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            Semua ({admins.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setRoleFilter('superadmin')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              roleFilter === 'superadmin'
+                ? 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            Superadmin ({admins.filter(a => a.role === 'superadmin').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setRoleFilter('admin')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              roleFilter === 'admin'
+                ? 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            Admin ({admins.filter(a => a.role === 'admin').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setRoleFilter('user')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              roleFilter === 'user'
+                ? 'bg-amber-500 text-black'
+                : 'bg-zinc-800 text-zinc-400 hover:text-white'
+            }`}
+          >
+            User ({admins.filter(a => a.role === 'user').length})
+          </button>
+        </div>
+
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Cari nama atau username..."
+          className="w-full sm:w-64 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+        />
       </div>
 
       {/* Success Notification Banner */}
@@ -216,9 +297,10 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
       {/* Admin List Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {admins.map((adm) => {
+        {filteredAdmins.map((adm) => {
           const isMe = adm.id === currentUser.id;
           const currentPassword = adm.password || (adm.role === 'superadmin' ? 'superadmin123' : 'admin123');
+          const isPasswordVisible = !!unmaskedPasswords[adm.id];
 
           return (
             <div
@@ -226,6 +308,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               className={`bg-zinc-900/80 border rounded-2xl p-5 shadow-xl space-y-4 relative flex flex-col justify-between ${
                 adm.role === 'superadmin' 
                   ? 'border-amber-500/40 bg-zinc-900/95 ring-1 ring-amber-500/20' 
+                  : adm.role === 'admin'
+                  ? 'border-blue-500/30'
                   : 'border-zinc-800'
               }`}
             >
@@ -233,13 +317,23 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 {/* Header Profile */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className={`w-12 h-12 rounded-xl border flex items-center justify-center font-tactical font-black text-lg ${
-                      adm.role === 'superadmin'
-                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
-                        : 'bg-zinc-800 border-zinc-700 text-blue-400'
-                    }`}>
-                      {adm.name.charAt(0)}
-                    </div>
+                    {adm.avatar ? (
+                      <img
+                        src={adm.avatar}
+                        alt={adm.name}
+                        className="w-12 h-12 rounded-xl object-cover border border-amber-500/40 shrink-0"
+                      />
+                    ) : (
+                      <div className={`w-12 h-12 rounded-xl border flex items-center justify-center font-tactical font-black text-lg shrink-0 ${
+                        adm.role === 'superadmin'
+                          ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                          : adm.role === 'admin'
+                          ? 'bg-blue-500/20 border-blue-500/40 text-blue-400'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-300'
+                      }`}>
+                        {adm.name.charAt(0)}
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-bold text-white text-sm flex items-center space-x-1.5">
                         <span>{adm.name}</span>
@@ -256,39 +350,61 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
                     adm.role === 'superadmin'
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                      : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                      : adm.role === 'admin'
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                      : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                   }`}>
                     {adm.role}
                   </span>
                 </div>
 
-                {/* Details & Password Box */}
+                {/* Details & Closed Password Box */}
                 <div className="space-y-2 text-xs text-zinc-400 border-t border-zinc-800/80 pt-3 mt-3">
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span>Level Akses:</span>
                     <span className="text-white font-medium">
-                      {adm.role === 'superadmin' ? 'Superadmin (Full Akses)' : 'Admin Joki (Update Order)'}
+                      {adm.role === 'superadmin'
+                        ? 'Superadmin (Full Akses)'
+                        : adm.role === 'admin'
+                        ? 'Admin (Update Progres Order)'
+                        : 'User (Pelanggan)'}
                     </span>
                   </div>
 
-                  {/* Password Info Box */}
-                  <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Password Login:</span>
-                      <span className="font-mono text-xs font-bold text-amber-300">
-                        {currentPassword}
-                      </span>
-                    </div>
+                  {/* Quick Promote to Admin button if role is user */}
+                  {adm.role === 'user' && (
                     <button
                       type="button"
-                      onClick={() => handleCopyPassword(adm)}
-                      className="p-1 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-700 transition-colors cursor-pointer"
-                      title="Salin Password"
+                      onClick={() => handlePromoteToAdmin(adm)}
+                      className="w-full py-1.5 px-2 bg-gradient-to-r from-blue-600/20 to-blue-500/20 hover:from-blue-600 hover:to-blue-500 text-blue-300 hover:text-white border border-blue-500/40 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
                     >
-                      {copiedId === adm.id ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Naikkan Role ke Admin</span>
+                    </button>
+                  )}
+
+                  {/* Password Info Box - Ditutup & Dilindungi */}
+                  <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Lock className="w-3.5 h-3.5 text-zinc-500" />
+                      <div>
+                        <span className="text-[10px] text-zinc-500 uppercase font-semibold block">Password:</span>
+                        <span className="font-mono text-xs font-bold text-amber-300 tracking-wider">
+                          {isPasswordVisible ? currentPassword : '••••••••••••'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleUnmaskPassword(adm.id)}
+                      className="p-1 text-zinc-400 hover:text-white bg-zinc-900 hover:bg-zinc-800 rounded border border-zinc-700 transition-colors cursor-pointer"
+                      title={isPasswordVisible ? 'Tutup / Sembunyikan Password' : 'Buka / Lihat Password'}
+                    >
+                      {isPasswordVisible ? (
+                        <EyeOff className="w-3.5 h-3.5" />
                       ) : (
-                        <Copy className="w-3.5 h-3.5" />
+                        <Eye className="w-3.5 h-3.5" />
                       )}
                     </button>
                   </div>
@@ -314,7 +430,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   className="flex-1 py-1.5 px-3 bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-black border border-amber-500/40 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Nama & Password</span>
+                  <span>Edit Role & Password</span>
                 </button>
 
                 <button
@@ -336,7 +452,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     type="button"
                     onClick={() => handleDelete(adm)}
                     className="p-2 text-zinc-500 hover:text-rose-400 rounded-xl hover:bg-rose-500/10 transition-colors cursor-pointer border border-transparent hover:border-rose-500/30"
-                    title="Hapus Admin"
+                    title="Hapus Akun"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -356,7 +472,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               <div className="flex items-center space-x-2">
                 <Key className="w-5 h-5 text-amber-400" />
                 <h3 className="font-tactical text-lg font-bold text-white uppercase">
-                  EDIT AKUN & GANTI PASSWORD
+                  EDIT ROLE & PASSWORD AKUN
                 </h3>
               </div>
               <button
@@ -378,7 +494,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1">
-                  Nama Lengkap Admin / Nickname Joki:
+                  Nama Lengkap Akun:
                 </label>
                 <div className="relative">
                   <User className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
@@ -387,7 +503,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     required
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Contoh: Chief Operasional (Superadmin)"
+                    placeholder="Nama Lengkap"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-white focus:border-amber-500"
                   />
                 </div>
@@ -402,7 +518,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   required
                   value={editUsername}
                   onChange={(e) => setEditUsername(e.target.value)}
-                  placeholder="Contoh: superadmin"
+                  placeholder="username"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500 font-mono"
                 />
               </div>
@@ -410,7 +526,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-xs font-semibold uppercase text-zinc-300">
-                    Password Baru / Ganti Password:
+                    Password Baru (Tertutup):
                   </label>
                   <button
                     type="button"
@@ -441,24 +557,22 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-white focus:border-amber-500 font-mono"
                   />
                 </div>
-                <p className="text-[10px] text-zinc-500 mt-1">
-                  *Ketik password baru yang diinginkan untuk akun ini.
-                </p>
               </div>
 
-              {/* Role & Status (Only if superadmin or editing others) */}
+              {/* Role & Status (Superadmin can promote/demote role) */}
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-zinc-800/80">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1">
-                    Level Role:
+                    Level Role (Akses):
                   </label>
                   <select
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value as UserRole)}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500 text-xs"
                   >
-                    <option value="admin">Admin Biasa</option>
-                    <option value="superadmin">Superadmin</option>
+                    <option value="user">User (Pelanggan)</option>
+                    <option value="admin">Admin (Tim Joki)</option>
+                    <option value="superadmin">Superadmin (Owner)</option>
                   </select>
                 </div>
 
@@ -499,7 +613,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
         </div>
       )}
 
-      {/* MODAL: TAMBAH ADMIN BARU */}
+      {/* MODAL: TAMBAH USER / ADMIN BARU */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
           <div className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -508,7 +622,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
               <div className="flex items-center space-x-2">
                 <UserPlus className="w-5 h-5 text-amber-400" />
                 <h3 className="font-tactical text-lg font-bold text-white uppercase">
-                  TAMBAH AKUN ADMIN BARU
+                  BUAT AKUN BARU (USER / ADMIN)
                 </h3>
               </div>
               <button
@@ -530,14 +644,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1">
-                  Nama Lengkap Admin / Nickname Joki:
+                  Nama Lengkap:
                 </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Contoh: Joki Bravo (Armory Specialist)"
+                  placeholder="Contoh: Budi Santoso / Joki Delta"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500"
                 />
               </div>
@@ -551,7 +665,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Contoh: joki_bravo"
+                  placeholder="Contoh: user_budi / joki_delta"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500 font-mono"
                 />
               </div>
@@ -584,7 +698,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="admin123"
+                  placeholder="password123"
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500 font-mono"
                 />
               </div>
@@ -598,8 +712,9 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500"
                 >
-                  <option value="admin">Admin Biasa (Hanya Lihat & Update Order)</option>
-                  <option value="superadmin">Superadmin (Akses Penuh Kelola Harga & Sistem)</option>
+                  <option value="user">User (Pelanggan)</option>
+                  <option value="admin">Admin (Tim Joki - Update Order)</option>
+                  <option value="superadmin">Superadmin (Owner - Full Akses & Verifikasi)</option>
                 </select>
               </div>
 
@@ -616,7 +731,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                   type="submit"
                   className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase tracking-wider rounded-xl shadow-lg cursor-pointer"
                 >
-                  Simpan Admin
+                  Simpan Akun
                 </button>
               </div>
             </form>

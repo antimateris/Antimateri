@@ -12,7 +12,10 @@ import {
   Sparkles,
   Smartphone,
   Bot,
-  Shield
+  Shield,
+  AlertTriangle,
+  Wrench,
+  Clock
 } from 'lucide-react';
 import { SystemSettings } from '../../types';
 
@@ -56,11 +59,11 @@ export const AdminSystemSettingsTab: React.FC<AdminSystemSettingsTabProps> = ({
               SUPERADMIN EXCLUSIVE
             </span>
             <h2 className="text-xl font-bold font-tactical text-white uppercase tracking-wider">
-              PENGATURAN SISTEM & WHATSAPP GATEWAY
+              PENGATURAN SISTEM & MAINTENANCE MODE
             </h2>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            Konfigurasi gateway notifikasi WhatsApp, bot broadcast worker joki (anonim), nomor CS, teks pengumuman, dan integrasi API.
+            Saklar Maintenance Mode Publik, konfigurasi gateway WhatsApp, nomor CS, teks pengumuman, dan integrasi API.
           </p>
         </div>
 
@@ -76,9 +79,103 @@ export const AdminSystemSettingsTab: React.FC<AdminSystemSettingsTabProps> = ({
       {savedSuccess && (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center space-x-2 text-emerald-400 text-xs font-semibold animate-in fade-in">
           <CheckCircle2 className="w-4 h-4 shrink-0" />
-          <span>Pengaturan sistem dan gateway WhatsApp berhasil diperbarui!</span>
+          <span>Pengaturan sistem dan Maintenance Mode berhasil diperbarui!</span>
         </div>
       )}
+
+      {/* GLOBAL MAINTENANCE MODE CARD */}
+      <div className={`p-5 sm:p-6 rounded-2xl border transition-all ${
+        form.maintenanceMode 
+          ? 'bg-gradient-to-r from-rose-950/40 via-amber-950/20 to-zinc-900 border-rose-500/60 shadow-xl shadow-rose-950/30' 
+          : 'bg-zinc-900/90 border-zinc-800'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
+          <div className="flex items-start space-x-3.5">
+            <div className={`p-2.5 rounded-xl border shrink-0 ${
+              form.maintenanceMode 
+                ? 'bg-rose-500/20 border-rose-500/40 text-rose-400' 
+                : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+            }`}>
+              <Wrench className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h3 className="font-tactical font-bold text-base sm:text-lg text-white uppercase tracking-wider">
+                  GLOBAL MAINTENANCE MODE (MODE PEMELIHARAAN)
+                </h3>
+                {form.maintenanceMode ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white animate-pulse">
+                    ACTIVE / AKTIF
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400 border border-zinc-700">
+                    STANDBY / NONAKTIF
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-zinc-400 mt-1 max-w-2xl">
+                Bila diaktifkan, seluruh pengunjung publik akan diarahkan ke layar pemeliharaan (*Maintenance Splash Screen*). Pembuatan pesanan baru akan dinonaktifkan sementara. Admin dan Superadmin tetap dapat login dan mengakses dashboard.
+              </p>
+            </div>
+          </div>
+
+          {/* Toggle Switch */}
+          <div className="flex items-center space-x-3 shrink-0">
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.maintenanceMode}
+                onChange={(e) => setForm({ ...form, maintenanceMode: e.target.checked })}
+                className="sr-only peer"
+              />
+              <div className="w-14 h-7 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[4px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-rose-600"></div>
+            </label>
+          </div>
+        </div>
+
+        {/* Maintenance Customization Options */}
+        {form.maintenanceMode && (
+          <div className="mt-5 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs animate-in fade-in duration-200">
+            <div className="sm:col-span-2">
+              <label className="block text-zinc-300 font-semibold mb-1">Judul Layar Maintenance:</label>
+              <input
+                type="text"
+                value={form.maintenanceTitle || ''}
+                placeholder="Contoh: Pemeliharaan Sistem & Sinkronisasi Server Sedang Berlangsung"
+                onChange={(e) => setForm({ ...form, maintenanceTitle: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-white font-medium focus:border-amber-500"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-zinc-300 font-semibold mb-1">Pesan Penjelasan untuk Pengunjung:</label>
+              <textarea
+                rows={3}
+                value={form.maintenanceMessage || ''}
+                placeholder="Jelaskan alasan pemeliharaan atau optimasi yang sedang dilakukan..."
+                onChange={(e) => setForm({ ...form, maintenanceMessage: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-zinc-200 focus:border-amber-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-zinc-300 font-semibold mb-1">Estimasi Waktu Selesai (Opsional):</label>
+              <input
+                type="text"
+                value={form.maintenanceEstimatedEnd || ''}
+                placeholder="Contoh: Estimasi Selesai: 30 - 60 Menit"
+                onChange={(e) => setForm({ ...form, maintenanceEstimatedEnd: e.target.value })}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-amber-300 focus:border-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs space-x-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>Pengunjung tetap dapat menghubungi CS via WhatsApp dan melacak resi yang sudah berjalan.</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

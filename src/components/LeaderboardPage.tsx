@@ -346,7 +346,18 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60">
-                    {filteredSpenders.map((cust, idx) => {
+                    {filteredSpenders.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-zinc-500">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <Trophy className="w-8 h-8 text-zinc-600" />
+                            <p className="text-sm font-semibold text-zinc-400">Belum ada data member di Season ini</p>
+                            <p className="text-xs text-zinc-500">Buat pesanan pertama Anda untuk memimpin Hall of Fame!</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredSpenders.map((cust, idx) => {
                       const rank = idx + 1;
                       const isCurrent = currentCustomer?.id === cust.id;
                       const tier = TIER_CONFIGS[cust.tier] || TIER_CONFIGS.recruit;
@@ -398,7 +409,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
               </div>
@@ -430,7 +441,18 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60">
-                    {filteredGrinders.map((cust, idx) => {
+                    {filteredGrinders.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-12 text-center text-zinc-500">
+                          <div className="flex flex-col items-center justify-center space-y-2">
+                            <Trophy className="w-8 h-8 text-zinc-600" />
+                            <p className="text-sm font-semibold text-zinc-400">Belum ada statistik farming yang tercatat</p>
+                            <p className="text-xs text-zinc-500">Pesanan Joki Koen yang selesai akan otomatis masuk ke peringkat ini.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredGrinders.map((cust, idx) => {
                       const rank = idx + 1;
                       const isCurrent = currentCustomer?.id === cust.id;
                       const tier = TIER_CONFIGS[cust.tier] || TIER_CONFIGS.recruit;
@@ -473,7 +495,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                           </td>
                         </tr>
                       );
-                    })}
+                    }))}
                   </tbody>
                 </table>
               </div>

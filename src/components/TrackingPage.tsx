@@ -23,7 +23,8 @@ import {
   formatRupiah, 
   formatDate, 
   getStatusBadge, 
-  getWhatsAppDirectUrl 
+  getWhatsAppDirectUrl,
+  maskPhoneNumber 
 } from '../utils/helpers';
 
 interface TrackingPageProps {
@@ -56,20 +57,17 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     }
   };
 
-  // Auto search on initial invoice prop
+  // Auto search ONLY when specific initial invoice/query is passed via URL or props
   useEffect(() => {
     const query = initialInvoice || initialQuery;
     if (query) {
       setSearchQuery(query);
       handleSearch(query);
-    } else if (orders.length > 0 && !selectedOrder) {
-      // default select the latest active order
-      setSelectedOrder(orders[0]);
     }
-  }, [initialInvoice, initialQuery, orders]);
+  }, [initialInvoice, initialQuery]);
 
   const handleSearch = (queryToUse?: string) => {
-    const q = (queryToUse || searchQuery).trim().toLowerCase();
+    const q = (queryToUse !== undefined ? queryToUse : searchQuery).trim().toLowerCase();
     setHasSearched(true);
 
     if (!q) {
@@ -79,8 +77,10 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
     const found = orders.find(
       (o) =>
+        o.invoiceNumber.toLowerCase() === q ||
         o.invoiceNumber.toLowerCase().includes(q) ||
-        o.customerWhatsApp.includes(q) ||
+        o.customerWhatsApp.replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
+        o.gameNickname.toLowerCase() === q ||
         o.gameNickname.toLowerCase().includes(q)
     );
 
@@ -137,23 +137,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           </button>
         </form>
 
-        {/* Quick Search Chips from existing orders */}
-        <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-zinc-800/80 text-xs text-zinc-400">
-          <span className="text-[11px] font-semibold text-zinc-500">Coba Demo Invoice:</span>
-          {orders.slice(0, 4).map((ord) => (
-            <button
-              key={ord.id}
-              type="button"
-              onClick={() => {
-                setSearchQuery(ord.invoiceNumber);
-                handleSearch(ord.invoiceNumber);
-              }}
-              className="px-2.5 py-1 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 text-zinc-300 hover:text-amber-400 rounded-lg text-[11px] font-mono transition-colors"
-            >
-              {ord.invoiceNumber} ({ord.gameNickname})
-            </button>
-          ))}
-        </div>
+        {/* Clean Search Input - No Demo Chips */}
       </div>
 
       {/* Result Display */}
@@ -187,25 +171,23 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               )}
             </div>
 
-            {/* Tactical Pipeline Stepper */}
+            {/* Tactical Pipeline Stepper - Langsung Verifikasi Pembayaran */}
             <div>
               <div className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
                 STATUS ALUR PENGERJAAN:
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                 {[
-                  { key: 'unpaid', label: '1. Menunggu Bayar', step: 1 },
-                  { key: 'verifying', label: '2. Verifikasi Bayar', step: 2 },
-                  { key: 'queued', label: '3. Masuk Antrean', step: 3 },
-                  { key: 'in_progress', label: '4. Sedang Dimainkan', step: 4 },
-                  { key: 'completed', label: '5. Selesai 100%', step: 5 },
+                  { key: 'verifying', label: '1. Verifikasi Pembayaran', step: 1 },
+                  { key: 'queued', label: '2. Masuk Antrean Joki', step: 2 },
+                  { key: 'in_progress', label: '3. Sedang Dimainkan (Raid)', step: 3 },
+                  { key: 'completed', label: '4. Selesai 100%', step: 4 },
                 ].map((st) => {
                   const getStepRank = (s: string) => {
-                    if (s === 'unpaid') return 1;
-                    if (s === 'verifying') return 2;
-                    if (s === 'queued') return 3;
-                    if (s === 'in_progress') return 4;
-                    if (s === 'completed') return 5;
+                    if (s === 'unpaid' || s === 'verifying') return 1;
+                    if (s === 'queued') return 2;
+                    if (s === 'in_progress') return 3;
+                    if (s === 'completed') return 4;
                     return 0;
                   };
 
@@ -234,26 +216,22 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               </div>
             </div>
 
-            {/* Unpaid Alert & Action */}
-            {selectedOrder.orderStatus === 'unpaid' && (
+            {/* Verifying Status Information Banner */}
+            {(selectedOrder.orderStatus === 'verifying' || selectedOrder.orderStatus === 'unpaid') && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
-                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                  <ShieldCheck className="w-6 h-6 text-amber-400 shrink-0" />
                   <div>
-                    <h4 className="text-sm font-bold text-amber-300">Menunggu Pembayaran</h4>
+                    <h4 className="text-sm font-bold text-amber-300">Tahap: Verifikasi Pembayaran oleh Superadmin</h4>
                     <p className="text-xs text-zinc-300">
-                      Silakan selesaikan pembayaran sebesar <span className="font-bold text-white">{formatRupiah(selectedOrder.totalPrice)}</span> untuk memulai antrean joki.
+                      Pesanan Anda sebesar <span className="font-bold text-white">{formatRupiah(selectedOrder.totalPrice)}</span> sedang dalam proses verifikasi manual oleh Superadmin untuk menjamin keamanan transaksi.
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handlePay(selectedOrder)}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs uppercase tracking-wider rounded-lg shadow-md shrink-0 cursor-pointer"
-                >
-                  Bayar Sekarang
-                </button>
+                <div className="px-3 py-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-mono font-bold shrink-0">
+                  Sedang Dicek Superadmin
+                </div>
               </div>
             )}
 
@@ -308,7 +286,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
               <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
                 <span className="text-zinc-500 block mb-1">Nomor WhatsApp Pelanggan:</span>
                 <span className="font-bold text-sm text-white font-mono">
-                  {selectedOrder.customerWhatsApp}
+                  {maskPhoneNumber(selectedOrder.customerWhatsApp)}
                 </span>
               </div>
 

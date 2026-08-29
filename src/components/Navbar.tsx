@@ -225,9 +225,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onClick={onOpenCustomerProfile}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 rounded-xl hover:border-amber-400 transition-all cursor-pointer text-left"
               >
-                <div className="w-7 h-7 rounded-lg bg-amber-500/30 flex items-center justify-center font-bold text-amber-400 text-xs">
-                  {currentCustomer.name.charAt(0)}
-                </div>
+                {currentCustomer.avatar ? (
+                  <img
+                    src={currentCustomer.avatar}
+                    alt={currentCustomer.name}
+                    className="w-7 h-7 rounded-lg object-cover border border-amber-400 shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/30 flex items-center justify-center font-bold text-amber-400 text-xs shrink-0">
+                    {currentCustomer.name.charAt(0)}
+                  </div>
+                )}
                 <div className="hidden sm:block">
                   <div className="flex items-center space-x-1.5">
                     <span className="text-xs font-bold text-white max-w-[100px] truncate">

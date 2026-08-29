@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   X, 
   User, 
@@ -19,13 +19,25 @@ import {
   Award, 
   TrendingUp, 
   Gamepad2, 
-  Phone,
-  CheckCircle2,
-  AlertCircle
+  Phone, 
+  CheckCircle2, 
+  AlertCircle, 
+  Camera, 
+  Upload, 
+  Image as ImageIcon 
 } from 'lucide-react';
 import { CustomerUser, CustomerRedeemedReward } from '../../types';
 import { TIER_CONFIGS, calculateTierFromExp } from '../../data/initialData';
 import { formatRupiah, formatDate } from '../../utils/helpers';
+
+export const TACTICAL_AVATARS = [
+  { id: 'operator1', name: 'Ghost Operator', url: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80' },
+  { id: 'operator2', name: 'Elite Sniper', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80' },
+  { id: 'operator3', name: 'Armory Lead', url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80' },
+  { id: 'operator4', name: 'Warlord Spec', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' },
+  { id: 'operator5', name: 'Delta Force', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80' },
+  { id: 'operator6', name: 'Night Stalker', url: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80' },
+];
 
 interface CustomerProfileModalProps {
   isOpen: boolean;
@@ -50,17 +62,36 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
   
   // Security & Profile Edit State
   const [editName, setEditName] = useState<string>(customer.name);
+  const [editAvatar, setEditAvatar] = useState<string>(customer.avatar || '');
   const [editGameNick, setEditGameNick] = useState<string>(customer.gameNickname || '');
   const [editWhatsApp, setEditWhatsApp] = useState<string>(customer.whatsapp);
   const [editPassword, setEditPassword] = useState<string>(customer.password || 'user123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isAnonymized, setIsAnonymized] = useState<boolean>(customer.isAnonymizedInLeaderboard || false);
   const [editSuccess, setEditSuccess] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Copy voucher feedback
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Ukuran foto maksimal 2MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setEditAvatar(reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const currentTier = TIER_CONFIGS[customer.tier] || TIER_CONFIGS.recruit;
   
@@ -80,13 +111,14 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
     const updated: CustomerUser = {
       ...customer,
       name: editName.trim(),
+      avatar: editAvatar.trim(),
       gameNickname: editGameNick.trim(),
       whatsapp: editWhatsApp.trim(),
       password: editPassword.trim(),
       isAnonymizedInLeaderboard: isAnonymized,
     };
     onUpdateCustomer(updated);
-    setEditSuccess('Profil dan Password Anda berhasil disimpan!');
+    setEditSuccess('Profil dan Foto Anda berhasil disimpan!');
     setTimeout(() => setEditSuccess(null), 3000);
   };
 
@@ -106,9 +138,17 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
         {/* Modal Header (Fixed at top) */}
         <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-tactical font-black text-base sm:text-lg shrink-0">
-              {customer.name.charAt(0)}
-            </div>
+            {customer.avatar ? (
+              <img
+                src={customer.avatar}
+                alt={customer.name}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-amber-500/50 shrink-0"
+              />
+            ) : (
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-tactical font-black text-base sm:text-lg shrink-0">
+                {customer.name.charAt(0)}
+              </div>
+            )}
             <div>
               <div className="flex items-center space-x-2 flex-wrap">
                 <h3 className="font-tactical text-sm sm:text-lg font-bold text-white uppercase tracking-wider">
@@ -430,6 +470,84 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
                   <span>{editSuccess}</span>
                 </div>
               )}
+
+              {/* Photo Profil / Avatar Section */}
+              <div className="p-3.5 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center space-x-1.5">
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span>Foto Profil Akun</span>
+                  </label>
+                  {editAvatar && (
+                    <button
+                      type="button"
+                      onClick={() => setEditAvatar('')}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 transition-colors"
+                    >
+                      Hapus Foto (Gunakan Inisial)
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-3.5">
+                  <div className="relative group shrink-0">
+                    {editAvatar ? (
+                      <img
+                        src={editAvatar}
+                        alt="Avatar Preview"
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-amber-400 font-tactical font-black text-xl">
+                        {editName.charAt(0) || 'U'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-1.5">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 border border-zinc-700 hover:border-amber-500/40 transition-all cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Unggah Foto dari Galeri</span>
+                    </button>
+                    <p className="text-[10px] text-zinc-500">Maks. 2MB (JPG, PNG, WebP)</p>
+                  </div>
+                </div>
+
+                {/* Preset Tactical Avatars */}
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block mb-2">
+                    Atau Pilih Avatar Taktis:
+                  </span>
+                  <div className="grid grid-cols-6 gap-2">
+                    {TACTICAL_AVATARS.map((av) => (
+                      <button
+                        key={av.id}
+                        type="button"
+                        onClick={() => setEditAvatar(av.url)}
+                        className={`relative rounded-xl overflow-hidden aspect-square border-2 transition-all cursor-pointer ${
+                          editAvatar === av.url
+                            ? 'border-amber-500 ring-2 ring-amber-500/40 scale-105'
+                            : 'border-zinc-800 hover:border-zinc-600'
+                        }`}
+                        title={av.name}
+                      >
+                        <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>

@@ -288,36 +288,6 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 <span>Masuk ke Akun Member</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
-
-              {/* Quick Login Test Accounts */}
-              <div className="pt-4 border-t border-zinc-800/80 space-y-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold block text-center">
-                  ⚡ Atau Masuk Cepat Akun Demo (Untuk Pengujian):
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {customers.slice(0, 2).map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleQuickLogin(c)}
-                      className="p-2.5 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 rounded-xl text-left transition-all cursor-pointer group"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white group-hover:text-amber-400 truncate max-w-[90px]">
-                          {c.name.split(' ')[0]}
-                        </span>
-                        <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.5 rounded uppercase">
-                          {c.tier}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-1 text-[10px] text-amber-400/90 font-mono mt-0.5">
-                        <Coins className="w-3 h-3" />
-                        <span>{c.opsCoins} Koin</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-3.5 text-xs sm:text-sm">

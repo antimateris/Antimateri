@@ -150,53 +150,9 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
             </button>
           </form>
 
-          {/* Quick Demo Credentials */}
-          <div className="pt-4 border-t border-zinc-800/80 space-y-2">
-            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider block">
-              PILIH AKUN TESTING DEMO:
-            </span>
-            
-            <div className="grid grid-cols-2 gap-2">
-              {superadminUser && (
-                <button
-                  type="button"
-                  id="btn-quick-superadmin"
-                  onClick={() => handleQuickFill(superadminUser.username, superadminUser.password || 'superadmin123')}
-                  className="p-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-amber-500/40 text-left transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-amber-400 truncate max-w-[90px]">{superadminUser.name}</span>
-                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold">SUPER</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 mt-0.5 font-mono truncate">
-                    {superadminUser.username} / {superadminUser.password || 'superadmin123'}
-                  </p>
-                </button>
-              )}
-
-              {regularAdminUser && (
-                <button
-                  type="button"
-                  id="btn-quick-admin1"
-                  onClick={() => handleQuickFill(regularAdminUser.username, regularAdminUser.password || 'admin123')}
-                  className="p-2.5 rounded-xl bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 text-left transition-all group cursor-pointer"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-400 truncate max-w-[90px]">{regularAdminUser.name}</span>
-                    <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded font-bold">ADMIN</span>
-                  </div>
-                  <p className="text-[10px] text-zinc-400 mt-0.5 font-mono truncate">
-                    {regularAdminUser.username} / {regularAdminUser.password || 'admin123'}
-                  </p>
-                </button>
-              )}
-            </div>
-
-            <p className="text-[10px] text-zinc-500 text-center pt-1">
-              *Admin biasa hanya bisa melihat & memperbarui status orderan. Superadmin dapat mengatur harga, menambah admin & setelan sistem.
-            </p>
-          </div>
-
+          <p className="text-[11px] text-zinc-500 text-center pt-2">
+            Akses khusus tim BreakoutOps. Hubungi Superadmin jika Anda belum memiliki akun atau lupa kata sandi.
+          </p>
         </div>
 
       </div>
