@@ -231,7 +231,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
 
   return (
     <>
-      <div id="order-form-container" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 pb-28 space-y-6">
+      <div id="order-form-container" className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         
         {/* Customer Membership Strip */}
         {currentCustomer ? (
@@ -359,6 +359,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       onClick={() => {
                         setIsCustomKoen(false);
                         setSelectedKoenPkgId(pkg.id);
+                        handlePackageSelected();
                       }}
                       className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer ${
                         isSelected
@@ -368,7 +369,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                     >
                       {pkg.popular && (
                         <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
-                          POPULAR 🔥
+                          POPULAR ðŸ”¥
                         </span>
                       )}
 
@@ -411,6 +412,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                 <div
                   onClick={() => {
                     setIsCustomKoen(true);
+                    handlePackageSelected();
                   }}
                   className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
                     isCustomKoen
@@ -456,4 +458,347 @@ export const OrderForm: React.FC<OrderFormProps> = ({
                       Tentukan Jumlah: <span className="text-amber-400 text-lg font-tactical">{customKoenAmount}M</span>
                     </label>
                     <span className="text-xs text-emerald-400 font-semibold">
-             
+                      {customKoenAmount >= 15 ? 'ðŸ”¥ Diskon 15%' : customKoenAmount >= 8 ? 'âœ¨ Diskon 10%' : 'Standar'}
+                    </span>
+                  </div>
+
+                  <input
+                    type="range"
+                    min="1"
+                    max="50"
+                    step="1"
+                    value={customKoenAmount}
+                    onChange={(e) => setCustomKoenAmount(Number(e.target.value))}
+                    className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                  />
+
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span>1M</span>
+                    <span>10M</span>
+                    <span>25M</span>
+                    <span>50M</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* JOKI MANDOR PACKAGES */}
+        {serviceType === 'joki_mandor' && (
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-lg space-y-6">
+            <div className="flex items-center space-x-3 pb-3 border-b border-zinc-800">
+              <span className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-400 font-tactical font-black text-lg flex items-center justify-center">
+                1
+              </span>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-white font-tactical uppercase tracking-wider">
+                  PILIH PAKET JOKI MANDOR
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Pilih paket per raid atau per jam mabar dipandu pro player
+                </p>
+              </div>
+            </div>
+
+            {/* Play Mode Choice */}
+            <div>
+              <label className="block text-xs font-semibold uppercase text-zinc-400 mb-2">
+                PILIH METODE MANDOR:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div
+                  onClick={() => setMandorPlayMode('mabar_squad')}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                    mandorPlayMode === 'mabar_squad'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-zinc-800 bg-zinc-950/60 hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <Users className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-sm text-white">Mabar Dibimbing</span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Anda ikut bermain di room, pro joki mengawal dan membagi loot.
+                  </p>
+                </div>
+
+                <div
+                  onClick={() => setMandorPlayMode('solo_escort')}
+                  className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                    mandorPlayMode === 'solo_escort'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-zinc-800 bg-zinc-950/60 hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-sm text-white">Joki Akun</span>
+                  </div>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Akun Anda dimainkan langsung oleh pro player.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Map Selector */}
+            <div>
+              <label className="block text-xs font-semibold uppercase text-zinc-400 mb-2">
+                PILIH TARGET MAP:
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+                {[
+                  'Farm Lockdown',
+                  'Valley Lockdown',
+                  'Northridge Lockdown',
+                  'Armory Lockdown',
+                  'TV Station',
+                  'Port Lockdown'
+                ].map((mapName) => (
+                  <button
+                    key={mapName}
+                    type="button"
+                    onClick={() => setMandorSelectedMap(mapName)}
+                    className={`p-2.5 rounded-lg text-xs font-bold border transition-all text-center ${
+                      mandorSelectedMap === mapName
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300'
+                        : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700'
+                    }`}
+                  >
+                    {mapName}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Mandor Packages */}
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {priceConfig.mandorPackages.map((pkg) => {
+                  const isSelected = selectedMandorPkgId === pkg.id;
+                  return (
+                    <div
+                      key={pkg.id}
+                      onClick={() => {
+                        setSelectedMandorPkgId(pkg.id);
+                        handlePackageSelected();
+                      }}
+                      className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-amber-500 bg-amber-500/10 shadow-md shadow-amber-500/10'
+                          : 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 hover:bg-zinc-900/60'
+                      }`}
+                    >
+                      {pkg.popular && (
+                        <span className="absolute -top-2.5 right-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full">
+                          RECOMMENDED ðŸ”¥
+                        </span>
+                      )}
+
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h3 className="font-tactical text-lg font-bold text-white tracking-wide">
+                            {pkg.title}
+                          </h3>
+                          <p className="text-xs text-zinc-400 mt-0.5 line-clamp-2">
+                            {pkg.description}
+                          </p>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                          isSelected ? 'border-amber-400 bg-amber-400 text-black' : 'border-zinc-700'
+                        }`}>
+                          {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-zinc-800/80 flex items-baseline justify-between">
+                        <div>
+                          <span className="text-base sm:text-lg font-extrabold text-amber-400 font-tactical">
+                            {formatRupiah(pkg.price)}
+                          </span>
+                          {pkg.originalPrice > pkg.price && (
+                            <span className="text-xs text-zinc-500 line-through ml-2">
+                              {formatRupiah(pkg.originalPrice)}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-zinc-400 font-medium">
+                          Garansi Evakuasi
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Add-ons Section */}
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-lg">
+          <label className="block text-xs font-semibold uppercase text-zinc-400 mb-3">
+            OPSI TAMBAHAN (ADD-ONS):
+          </label>
+          
+          <div className="space-y-2.5">
+            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  checked={isPrioritySpeed}
+                  onChange={(e) => setIsPrioritySpeed(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
+                />
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white">Prioritas Ekspres</span>
+                  <p className="text-[11px] text-zinc-400">Langsung dikerjakan tanpa antrean</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-amber-400">
+                +{formatRupiah(priceConfig.prioritySpeedFee)}
+              </span>
+            </label>
+
+            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  checked={isStreamDiscord}
+                  onChange={(e) => setIsStreamDiscord(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
+                />
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white">Live Stream Discord</span>
+                  <p className="text-[11px] text-zinc-400">Tonton langsung di Discord server VIP</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-amber-400">
+                +{formatRupiah(priceConfig.streamDiscordFee)}
+              </span>
+            </label>
+
+            <label className="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-zinc-700 cursor-pointer">
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  checked={isSafeLootOnly}
+                  onChange={(e) => setIsSafeLootOnly(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 bg-zinc-900 border-zinc-700 focus:ring-amber-400"
+                />
+                <div>
+                  <span className="text-xs sm:text-sm font-bold text-white">Garansi Safe Extraction</span>
+                  <p className="text-[11px] text-zinc-400">Garansi ganti rugi 100% jika ada gear hilang</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-emerald-400">
+                +{formatRupiah(priceConfig.safeLootGuaranteeFee)} (Included)
+              </span>
+            </label>
+          </div>
+        </div>
+
+        {/* Summary Section */}
+        <div className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/30 rounded-2xl p-5 sm:p-7 shadow-2xl">
+          <div className="flex items-center justify-between mb-5 pb-3 border-b border-zinc-800">
+            <div>
+              <h2 className="text-xl font-bold text-white font-tactical uppercase tracking-wider">
+                RINGKASAN PEMBAYARAN
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Paket: <span className="text-amber-400 font-semibold">{packageName}</span>
+              </p>
+            </div>
+            <span className="text-xs bg-amber-500/20 text-amber-300 font-bold px-2.5 py-1 rounded border border-amber-500/40">
+              100% AMAN
+            </span>
+          </div>
+
+          <div className="space-y-2 text-xs sm:text-sm border-b border-zinc-800/80 pb-4">
+            <div className="flex justify-between text-zinc-300">
+              <span>Biaya Paket</span>
+              <span className="font-semibold text-white">{formatRupiah(basePrice)}</span>
+            </div>
+
+            {isPrioritySpeed && (
+              <div className="flex justify-between text-zinc-400">
+                <span>Add-on Prioritas</span>
+                <span>+{formatRupiah(priceConfig.prioritySpeedFee)}</span>
+              </div>
+            )}
+
+            {isStreamDiscord && (
+              <div className="flex justify-between text-zinc-400">
+                <span>Add-on Live Stream</span>
+                <span>+{formatRupiah(priceConfig.streamDiscordFee)}</span>
+              </div>
+            )}
+
+            {isSafeLootOnly && (
+              <div className="flex justify-between text-zinc-400">
+                <span>Garansi Safe Extraction</span>
+                <span>+{formatRupiah(priceConfig.safeLootGuaranteeFee)}</span>
+              </div>
+            )}
+
+            {appliedDiscount > 0 && (
+              <div className="flex justify-between text-emerald-400 font-semibold">
+                <span>Diskon Kode Promo</span>
+                <span>-{formatRupiah(appliedDiscount)}</span>
+              </div>
+            )}
+
+            <div className="flex justify-between text-base sm:text-xl font-bold font-tactical pt-2 text-white">
+              <span>TOTAL DIBAYARKAN:</span>
+              <span className="text-amber-400 font-black tracking-wide text-xl sm:text-2xl">
+                {formatRupiah(finalTotal)}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-center text-[11px] text-zinc-500 mt-4">
+            ðŸ”’ Notifikasi & resi invoice akan dikirim ke WhatsApp Anda
+          </p>
+        </div>
+      </div>
+
+      {/* Account Details Modal */}
+      {showAccountModal && (
+        <AccountDetailsModal
+          isOpen={showAccountModal}
+          onClose={() => setShowAccountModal(false)}
+          onSave={handleAccountDetailsSaved}
+          initialData={{
+            gameNickname,
+            gameUserId,
+            loginMethod,
+            accountNotes,
+            customerName,
+            customerWhatsApp,
+          }}
+          priceConfig={priceConfig}
+          totalPrice={finalTotal}
+          packageName={packageName}
+        />
+      )}
+
+      {/* Payment Modal */}
+      {paymentOrder && (
+        <PaymentModal
+          order={paymentOrder}
+          settings={settings}
+          onClose={() => setPaymentOrder(null)}
+          onPaymentSuccess={(paidOrder) => {
+            if (onOrderCreated) {
+              onOrderCreated(paidOrder);
+            } else if (onOrderSubmitted) {
+              onOrderSubmitted(paidOrder);
+            }
+            setPaymentOrder(null);
+          }}
+        />
+      )}
+    </>
+  );
+};
