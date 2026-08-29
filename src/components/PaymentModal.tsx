@@ -43,7 +43,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
   const [copied, setCopied] = useState<boolean>(false);
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [isPaid, setIsPaid] = useState<boolean>(order.paymentStatus === 'paid');
   const [timeLeft, setTimeLeft] = useState<number>(899); // 15 mins countdown
 
@@ -68,31 +67,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Simulate payment confirmation
-  const handleSimulatePayment = () => {
-    setIsVerifying(true);
-
-    setTimeout(() => {
-      setIsVerifying(false);
-      setIsPaid(true);
-
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
-      const updatedOrder: Order = {
-        ...order,
-        paymentStatus: 'paid',
-        orderStatus: 'queued',
-        paidAt: new Date().toISOString(),
-      };
-
-      onPaymentSuccess(updatedOrder);
-    }, 1200);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
       <div className="relative w-full max-w-lg bg-zinc-900 border border-amber-500/40 rounded-2xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
@@ -105,7 +79,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
             <div>
               <h3 className="font-tactical text-lg font-bold text-white uppercase tracking-wider">
-                {isPaid ? 'PEMBAYARAN BERHASIL' : 'GERBANG PEMBAYARAN OTOMATIS'}
+                {isPaid ? 'PEMBAYARAN BERHASIL' : 'GERBANG PEMBAYARAN'}
               </h3>
               <p className="text-[11px] text-zinc-400 font-mono">
                 Invoice: <span className="text-amber-400 font-bold">{order.invoiceNumber}</span>
@@ -127,7 +101,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* If already paid */}
           {isPaid ? (
             <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20 animate-bounce">
+              <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20 animate-pulse">
                 <CheckCircle2 className="w-10 h-10 stroke-[2.5]" />
               </div>
 
@@ -162,7 +136,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
                 <button
                   onClick={() => handleTracking(order.invoiceNumber)}
-                  className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase text-sm rounded-xl shadow-lg transition-all cursor-pointer"
+                  className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2"
                 >
                   Lacak Progres Joki Live
                 </button>
@@ -277,33 +251,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   </div>
 
                   <div className="text-[11px] text-zinc-400 bg-zinc-900/50 p-2.5 rounded border border-zinc-800">
-                    ⚠️ Pastikan transfer tepat hingga 3 digit terakhir (<span className="text-amber-400 font-bold">+{order.uniqueCode}</span>) agar transaksi langsung diverifikasi otomatis oleh sistem API kami.
+                    ⚠️ Pastikan transfer tepat hingga 3 digit terakhir (<span className="text-amber-400 font-bold">+{order.uniqueCode}</span>) agar transaksi langsung diverifikasi otomatis oleh sistem.
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="space-y-2 pt-2">
-                <button
-                  type="button"
-                  id="btn-simulate-pay-success"
-                  disabled={isVerifying}
-                  onClick={handleSimulatePayment}
-                  className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-black font-extrabold font-tactical uppercase text-sm rounded-xl shadow-lg flex items-center justify-center space-x-2 transition-all cursor-pointer"
-                >
-                  {isVerifying ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Memverifikasi Mutasi Bank / QRIS...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Simulasi Selesaikan Pembayaran (Instant Auto-Verify)</span>
-                    </>
-                  )}
-                </button>
-
                 <div className="flex justify-between items-center text-xs text-zinc-500 px-1">
                   <span>🔒 Enkripsi API Pembayaran Terintegrasi</span>
                   <button
