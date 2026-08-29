@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "Order": {
+      "title": "Order",
+      "description": "Arena Breakout joki service orders with progress tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "serviceType": { "type": "string", "enum": ["joki_koen", "joki_mandor"] },
+        "serviceName": { "type": "string" },
+        "packageName": { "type": "string" },
+        "koenAmountMillion": { "type": "number" },
+        "mandorPackageType": { "type": "string" },
+        "mandorRaidsCount": { "type": "number" },
+        "mandorHoursCount": { "type": "number" },
+        "mandorMap": { "type": "string" },
+        "mandorPlayMode": { "type": "string" },
+        "gameNickname": { "type": "string" },
+        "loginMethod": { "type": "string" },
+        "gameUserId": { "type": "string" },
+        "accountNotes": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerWhatsApp": { "type": "string" },
+        "basePrice": { "type": "number" },
+        "discount": { "type": "number" },
+        "uniqueCode": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "paidAt": { "type": "string" },
+        "orderStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "startedAt": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "assignedWorker": { "type": "string" },
+        "currentProgressPercent": { "type": "number" },
+        "progressHistory": { "type": "array" },
+        "isPrioritySpeed": { "type": "boolean" },
+        "isStreamDiscord": { "type": "boolean" },
+        "isSafeLootOnly": { "type": "boolean" }
+      },
+      "required": ["id", "invoiceNumber", "serviceType", "gameNickname", "customerWhatsApp", "totalPrice", "orderStatus", "createdAt"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Store configuration and WhatsApp templates",
+      "type": "object",
+      "properties": {
+        "storeName": { "type": "string" },
+        "storeTagline": { "type": "string" },
+        "whatsappCSNumber": { "type": "string" },
+        "workerGroupWhatsApp": { "type": "string" },
+        "csWorkingHours": { "type": "string" },
+        "autoVerifyPayment": { "type": "boolean" },
+        "announcementText": { "type": "string" },
+        "runningTicker": { "type": "string" },
+        "notificationTemplates": { "type": "object" }
+      }
+    },
+    "PriceConfig": {
+      "title": "PriceConfig",
+      "description": "Package prices and rates",
+      "type": "object",
+      "properties": {
+        "koenPerMillionRate": { "type": "number" },
+        "koenPackages": { "type": "array" },
+        "mandorPackages": { "type": "array" }
+      }
+    },
+    "CustomerUser": {
+      "title": "CustomerUser",
+      "description": "Registered customer profile, gamification tier, and coin balance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "username": { "type": "string" },
+        "name": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "gameNickname": { "type": "string" },
+        "gameUserId": { "type": "string" },
+        "opsCoins": { "type": "number" },
+        "exp": { "type": "number" },
+        "tier": { "type": "string" },
+        "totalSpent": { "type": "number" },
+        "totalOrders": { "type": "number" },
+        "totalKoenFarmedMillion": { "type": "number" },
+        "totalRaidHours": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "username", "name", "whatsapp", "tier", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Order records for joki services"
+    },
+    "/settings/{settingId}": {
+      "schema": "SystemSetting",
+      "description": "System settings and templates"
+    },
+    "/prices/{priceId}": {
+      "schema": "PriceConfig",
+      "description": "Pricing configurations"
+    },
+    "/waLogs/{logId}": {
+      "description": "WhatsApp notification logs"
+    },
+    "/customers/{customerId}": {
+      "schema": "CustomerUser",
+      "description": "Customer accounts and gamification profiles"
+    },
+    "/admins/{adminId}": {
+      "description": "Admin users and team credentials"
+    }
+  }
+}

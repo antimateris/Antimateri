@@ -1,0 +1,6 @@
+{
+  "name": "BreakoutOps - Jasa Joki Arena Breakout",
+  "description": "Platform Layanan Joki Arena Breakout (Joki Koen & Joki Mandor) terpercaya dengan pelacakan pesanan publik, integrasi QRIS & E-Wallet, notifikasi WhatsApp real-time, dan Dasbor Admin/Superadmin dengan analitik bulanan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
