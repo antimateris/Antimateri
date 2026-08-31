@@ -747,7 +747,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-900">
       
       {/* If inside Admin Console, render full Admin Portal */}
       {activeTab === 'admin' && currentAdminUser ? (

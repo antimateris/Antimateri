@@ -49,25 +49,25 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-between relative overflow-hidden font-sans selection:bg-amber-500 selection:text-black">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col justify-between relative overflow-hidden font-sans selection:bg-amber-500 selection:text-black">
       {/* Tactical Grid Background */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#18181b18_1px,transparent_1px),linear-gradient(to_bottom,#18181b18_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_40%,#000_70%,transparent_100%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000008_1px,transparent_1px),linear-gradient(to_bottom,#00000008_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_40%,#000_70%,transparent_100%)] pointer-events-none" />
 
       {/* Ambient Lighting */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 sm:w-[540px] h-96 sm:h-[540px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 left-1/4 w-72 h-72 bg-orange-600/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-10 left-1/4 w-72 h-72 bg-amber-600/5 rounded-full blur-[100px] pointer-events-none" />
 
       {/* Top Bar Header */}
-      <header className="relative z-10 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="relative z-10 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-tactical font-black text-sm shadow-md">
             BO
           </div>
           <div>
-            <span className="font-tactical font-black text-sm sm:text-base tracking-wider text-white">
+            <span className="font-tactical font-black text-sm sm:text-base tracking-wider text-slate-900">
               {settings.storeName.toUpperCase()}
             </span>
-            <span className="hidden sm:inline-block ml-2 text-[10px] bg-amber-500/20 text-amber-300 font-bold px-2 py-0.5 rounded border border-amber-500/30">
+            <span className="hidden sm:inline-block ml-2 text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded border border-amber-300">
               SYSTEM MAINTENANCE
             </span>
           </div>
@@ -77,19 +77,19 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
         <button
           type="button"
           onClick={onOpenAdminLogin}
-          className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-700/80 hover:border-amber-500/40 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-sm"
+          className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-300 hover:border-amber-400 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-xs"
         >
-          <Lock className="w-3.5 h-3.5 text-amber-400" />
+          <Lock className="w-3.5 h-3.5 text-amber-600" />
           <span>Login Staff / Admin</span>
         </button>
       </header>
 
       {/* Main Content Area */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
-        <div className="w-full max-w-2xl bg-gradient-to-b from-zinc-900/95 via-zinc-900/90 to-zinc-950/95 border border-amber-500/40 rounded-3xl p-6 sm:p-10 shadow-2xl shadow-black/80 backdrop-blur-xl text-center space-y-6">
+        <div className="w-full max-w-2xl bg-white border border-amber-300 rounded-3xl p-6 sm:p-10 shadow-xl backdrop-blur-xl text-center space-y-6">
           
           {/* Animated Tactical Badge */}
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-full text-amber-400 text-xs font-bold font-mono">
+          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 bg-amber-50 border border-amber-300 rounded-full text-amber-800 text-xs font-bold font-mono">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -100,18 +100,18 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
           {/* Central Icon Graphics */}
           <div className="relative mx-auto w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center">
             <div className="absolute inset-0 rounded-3xl bg-amber-500/20 blur-xl animate-pulse" />
-            <div className="relative w-full h-full rounded-3xl bg-zinc-950 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-inner">
+            <div className="relative w-full h-full rounded-3xl bg-amber-50 border border-amber-300 flex items-center justify-center text-amber-600 shadow-inner">
               <Wrench className="w-10 h-10 sm:w-12 sm:h-12 animate-bounce" style={{ animationDuration: '2.5s' }} />
             </div>
           </div>
 
           {/* Title & Message */}
           <div className="space-y-3">
-            <h1 className="font-tactical text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white tracking-wide uppercase">
+            <h1 className="font-tactical text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-wide uppercase">
               {settings.maintenanceTitle || 'PEMELIHARAAN SISTEM SEDANG BERLANGSUNG'}
             </h1>
             
-            <p className="text-sm sm:text-base text-zinc-300 max-w-lg mx-auto leading-relaxed">
+            <p className="text-sm sm:text-base text-slate-600 max-w-lg mx-auto leading-relaxed">
               {settings.maintenanceMessage || 
                 'Kami sedang melakukan optimasi server dan pembaruan sistem antrean joki Arena Breakout. Pembuatan pesanan baru dihentikan sementara demi keamanan transaksi.'}
             </p>
@@ -119,36 +119,36 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
 
           {/* Estimated Time Badge */}
           {settings.maintenanceEstimatedEnd && (
-            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-zinc-950/80 border border-zinc-800 rounded-2xl text-xs sm:text-sm text-zinc-300 font-medium">
-              <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="inline-flex items-center space-x-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-700 font-medium">
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
               <span>{settings.maintenanceEstimatedEnd}</span>
             </div>
           )}
 
           {/* Status Box */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
-            <div className="p-3.5 bg-zinc-950/70 border border-zinc-800 rounded-2xl flex items-start space-x-3">
-              <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start space-x-3">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               <div className="text-xs">
-                <span className="font-bold text-white block">Order Sedang Jalan Tetap Aman</span>
-                <span className="text-zinc-400">Joki yang sedang raid di Kamona tetap diproses sampai target tuntas.</span>
+                <span className="font-bold text-slate-900 block">Order Sedang Jalan Tetap Aman</span>
+                <span className="text-slate-500">Joki yang sedang raid di Kamona tetap diproses sampai target tuntas.</span>
               </div>
             </div>
 
-            <div className="p-3.5 bg-zinc-950/70 border border-zinc-800 rounded-2xl flex items-start space-x-3">
-              <Headphones className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-start space-x-3">
+              <Headphones className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-xs">
-                <span className="font-bold text-white block">CS WhatsApp Selalu Siaga</span>
-                <span className="text-zinc-400">Jam operasional: {settings.csWorkingHours}</span>
+                <span className="font-bold text-slate-900 block">CS WhatsApp Selalu Siaga</span>
+                <span className="text-slate-500">Jam operasional: {settings.csWorkingHours}</span>
               </div>
             </div>
           </div>
 
           {/* Interactive Fast-Track Search Form */}
           <form onSubmit={handleTrackSubmit} className="pt-2 text-left">
-            <div className="p-4 bg-zinc-950/90 rounded-2xl border border-amber-500/30 space-y-2.5">
-              <label className="text-xs font-bold text-zinc-300 flex items-center space-x-1.5 uppercase tracking-wider">
-                <Search className="w-3.5 h-3.5 text-amber-400" />
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5 uppercase tracking-wider">
+                <Search className="w-3.5 h-3.5 text-amber-600" />
                 <span>Lacak Status Resi Pesanan Aktif</span>
               </label>
               <div className="flex gap-2">
@@ -157,7 +157,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
                   value={invoiceQuery}
                   onChange={(e) => setInvoiceQuery(e.target.value)}
                   placeholder="Ketik Nomor Invoice (ABO-...) atau No. WhatsApp"
-                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
                 <button
                   type="submit"
@@ -167,19 +167,19 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
                   <span>Lacak</span>
                 </button>
               </div>
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-[11px] text-slate-500">
                 💡 Anda tetap bisa melihat live progres raid worker meskipun server sedang mode maintenance.
               </p>
             </div>
           </form>
 
           {/* Contact CS WhatsApp Button */}
-          <div className="pt-2 border-t border-zinc-800/80">
+          <div className="pt-2 border-t border-slate-200">
             <a
               href={csUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-tactical font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center space-x-2 shadow-lg shadow-green-950/50 transition-all cursor-pointer"
+              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-tactical font-bold text-xs uppercase tracking-wider rounded-xl flex items-center justify-center space-x-2 shadow-md transition-all cursor-pointer"
             >
               <MessageCircle className="w-4 h-4" />
               <span>Hubungi CS WhatsApp ({settings.whatsappCSNumber})</span>
@@ -190,26 +190,26 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({
       </main>
 
       {/* Bottom Footer */}
-      <footer className="relative z-10 py-4 text-center text-xs text-zinc-500 border-t border-zinc-900">
+      <footer className="relative z-10 py-4 text-center text-xs text-slate-500 border-t border-slate-200">
         <p>© 2026 {settings.storeName}. All Tactical Operations Reserved.</p>
       </footer>
 
       {/* FULL TRACKING MODAL OVERLAY IN MAINTENANCE MODE */}
       {isTrackingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain animate-in fade-in duration-200">
-          <div className="relative w-full max-w-5xl bg-zinc-900 border border-amber-500/40 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md overflow-y-auto overscroll-contain animate-in fade-in duration-200">
+          <div className="relative w-full max-w-5xl bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
             {/* Modal Header */}
-            <div className="bg-zinc-950 px-4 sm:px-6 py-3.5 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
+            <div className="bg-slate-50 px-4 sm:px-6 py-3.5 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center space-x-2">
-                <Search className="w-5 h-5 text-amber-400" />
-                <h3 className="font-tactical text-base sm:text-lg font-bold text-white uppercase tracking-wider">
+                <Search className="w-5 h-5 text-amber-600" />
+                <h3 className="font-tactical text-base sm:text-lg font-bold text-slate-900 uppercase tracking-wider">
                   Live Tracking Pesanan Joki
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsTrackingModalOpen(false)}
-                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
                 title="Tutup Pelacakan"
               >
                 <X className="w-5 h-5" />

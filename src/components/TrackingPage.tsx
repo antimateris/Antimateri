@@ -94,20 +94,20 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
       
       {/* Header Banner */}
       <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold">
-          <Search className="w-3.5 h-3.5 text-blue-400" />
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold">
+          <Search className="w-3.5 h-3.5 text-blue-600" />
           <span>Pelacakan Pesanan Real-Time (Tanpa Login)</span>
         </div>
-        <h1 className="text-2xl sm:text-4xl font-bold font-tactical text-white uppercase tracking-wider">
+        <h1 className="text-2xl sm:text-4xl font-bold font-tactical text-slate-900 uppercase tracking-wider">
           CEK STATUS PENGERJAAN & BUKTI JOKI
         </h1>
-        <p className="text-xs sm:text-sm text-zinc-400">
-          Masukkan Nomor Invoice (contoh: <code className="text-amber-400">ABO-2026-9821</code>) atau Nomor WhatsApp untuk memantau progres raid akun Anda.
+        <p className="text-xs sm:text-sm text-slate-600">
+          Masukkan Nomor Invoice (contoh: <code className="text-amber-700 font-bold bg-amber-50 px-1 py-0.5 rounded border border-amber-200">ABO-2026-9821</code>) atau Nomor WhatsApp untuk memantau progres raid akun Anda.
         </p>
       </div>
 
       {/* Search Bar Card */}
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-xl mb-8">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm mb-8">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -116,21 +116,21 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           className="flex flex-col sm:flex-row gap-2.5"
         >
           <div className="relative flex-1">
-            <Search className="w-5 h-5 text-zinc-500 absolute left-3.5 top-3.5" />
+            <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
             <input
               type="text"
               id="input-tracking-search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Masukkan No. Invoice / No. WhatsApp / Nickname..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-11 pr-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
             />
           </div>
 
           <button
             type="submit"
             id="btn-submit-tracking-search"
-            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase tracking-wider text-sm rounded-xl shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+            className="px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-extrabold font-tactical uppercase tracking-wider text-sm rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
           >
             <Search className="w-4 h-4" />
             <span>Lacak Sekarang</span>
@@ -145,20 +145,20 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
         <div className="space-y-6 animate-in fade-in duration-300">
           
           {/* Main Order Card */}
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-xl space-y-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-7 shadow-sm space-y-6">
             
             {/* Top Bar: Invoice & Status Badge */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-200">
               <div>
                 <div className="flex items-center space-x-2">
-                  <span className="font-mono text-xl sm:text-2xl font-black text-amber-400">
+                  <span className="font-mono text-xl sm:text-2xl font-black text-amber-600">
                     {selectedOrder.invoiceNumber}
                   </span>
-                  <span className="text-xs bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-medium">
+                  <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-medium border border-slate-200">
                     {selectedOrder.serviceType === 'joki_koen' ? 'Joki Koen' : 'Joki Mandor'}
                   </span>
                 </div>
-                <p className="text-xs text-zinc-400 mt-0.5">
+                <p className="text-xs text-slate-500 mt-0.5">
                   Dibuat pada: {formatDate(selectedOrder.createdAt)}
                 </p>
               </div>
@@ -173,7 +173,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
             {/* Tactical Pipeline Stepper - Langsung Verifikasi Pembayaran */}
             <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
                 STATUS ALUR PENGERJAAN:
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
@@ -200,14 +200,14 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                       key={st.key}
                       className={`p-2.5 rounded-xl border transition-all ${
                         isCurrent
-                          ? 'border-amber-500 bg-amber-500/20 text-amber-300 font-bold shadow-md'
+                          ? 'border-amber-500 bg-amber-50 text-amber-800 font-bold shadow-sm'
                           : isPassed
-                          ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-medium'
-                          : 'border-zinc-800 bg-zinc-950 text-zinc-600'
+                          ? 'border-emerald-300 bg-emerald-50 text-emerald-700 font-medium'
+                          : 'border-slate-200 bg-slate-50 text-slate-400'
                       }`}
                     >
                       <div className="flex items-center justify-center space-x-1">
-                        {isPassed && !isCurrent && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                        {isPassed && !isCurrent && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
                         <span>{st.label}</span>
                       </div>
                     </div>
@@ -218,99 +218,99 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
             {/* Verifying Status Information Banner */}
             {(selectedOrder.orderStatus === 'verifying' || selectedOrder.orderStatus === 'unpaid') && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="flex items-center space-x-3">
-                  <ShieldCheck className="w-6 h-6 text-amber-400 shrink-0" />
+                  <ShieldCheck className="w-6 h-6 text-amber-600 shrink-0" />
                   <div>
-                    <h4 className="text-sm font-bold text-amber-300">Tahap: Verifikasi Pembayaran oleh Superadmin</h4>
-                    <p className="text-xs text-zinc-300">
-                      Pesanan Anda sebesar <span className="font-bold text-white">{formatRupiah(selectedOrder.totalPrice)}</span> sedang dalam proses verifikasi manual oleh Superadmin untuk menjamin keamanan transaksi.
+                    <h4 className="text-sm font-bold text-amber-900">Tahap: Verifikasi Pembayaran oleh Superadmin</h4>
+                    <p className="text-xs text-slate-600">
+                      Pesanan Anda sebesar <span className="font-bold text-slate-900">{formatRupiah(selectedOrder.totalPrice)}</span> sedang dalam proses verifikasi manual oleh Superadmin untuk menjamin keamanan transaksi.
                     </p>
                   </div>
                 </div>
 
-                <div className="px-3 py-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-mono font-bold shrink-0">
+                <div className="px-3 py-1.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-mono font-bold shrink-0">
                   Sedang Dicek Superadmin
                 </div>
               </div>
             )}
 
             {/* Live Progress Bar Card */}
-            <div className="bg-zinc-950 p-4 sm:p-5 rounded-xl border border-zinc-800 space-y-3">
+            <div className="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <TrendingUp className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm font-bold text-white uppercase tracking-wider">
+                  <TrendingUp className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-bold text-slate-900 uppercase tracking-wider">
                     PROGRES PENGERJAAN REAL-TIME
                   </span>
                 </div>
-                <span className="text-lg font-black font-tactical text-amber-400">
+                <span className="text-lg font-black font-tactical text-amber-600">
                   {selectedOrder.currentProgressPercent}% SELESAI
                 </span>
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full h-3 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+              <div className="w-full h-3 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
                 <div
-                  className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-400 transition-all duration-500"
+                  className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-emerald-500 transition-all duration-500"
                   style={{ width: `${selectedOrder.currentProgressPercent}%` }}
                 />
               </div>
 
-              <div className="flex flex-wrap justify-between text-xs text-zinc-400 pt-1">
+              <div className="flex flex-wrap justify-between text-xs text-slate-600 pt-1">
                 <span>
-                  Joki Bertugas: <strong className="text-white">{selectedOrder.assignedWorker || 'Pro Joki Squad'}</strong>
+                  Joki Bertugas: <strong className="text-slate-900">{selectedOrder.assignedWorker || 'Pro Joki Squad'}</strong>
                 </span>
                 <span>
-                  Target: <strong className="text-amber-400">{selectedOrder.packageName}</strong>
+                  Target: <strong className="text-amber-700 font-bold">{selectedOrder.packageName}</strong>
                 </span>
               </div>
             </div>
 
             {/* Details Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 text-xs">
-              <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                <span className="text-zinc-500 block mb-1">Nickname In-Game:</span>
-                <span className="font-bold text-sm text-white font-tactical tracking-wide">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block mb-1">Nickname In-Game:</span>
+                <span className="font-bold text-sm text-slate-900 font-tactical tracking-wide">
                   {selectedOrder.gameNickname}
                 </span>
               </div>
 
-              <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                <span className="text-zinc-500 block mb-1">Metode Login:</span>
-                <span className="font-bold text-sm text-amber-400">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block mb-1">Metode Login:</span>
+                <span className="font-bold text-sm text-amber-700">
                   {selectedOrder.loginMethod}
                 </span>
               </div>
 
-              <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                <span className="text-zinc-500 block mb-1">Nomor WhatsApp Pelanggan:</span>
-                <span className="font-bold text-sm text-white font-mono">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block mb-1">Nomor WhatsApp Pelanggan:</span>
+                <span className="font-bold text-sm text-slate-900 font-mono">
                   {maskPhoneNumber(selectedOrder.customerWhatsApp)}
                 </span>
               </div>
 
               {selectedOrder.mandorMap && (
-                <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                  <span className="text-zinc-500 block mb-1">Target Map Mandor:</span>
-                  <span className="font-bold text-sm text-blue-400">
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-slate-500 block mb-1">Target Map Mandor:</span>
+                  <span className="font-bold text-sm text-blue-600">
                     {selectedOrder.mandorMap}
                   </span>
                 </div>
               )}
 
               {selectedOrder.mandorPlayMode && (
-                <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                  <span className="text-zinc-500 block mb-1">Metode Mandor:</span>
-                  <span className="font-bold text-sm text-emerald-400">
+                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                  <span className="text-slate-500 block mb-1">Metode Mandor:</span>
+                  <span className="font-bold text-sm text-emerald-600">
                     {selectedOrder.mandorPlayMode === 'mabar_squad' ? 'Mabar Bareng Pro Joki' : 'Joki Akun'}
                   </span>
                 </div>
               )}
 
-              <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800/80">
-                <span className="text-zinc-500 block mb-1">Garansi Keamanan:</span>
-                <span className="font-bold text-sm text-emerald-400 flex items-center gap-1">
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                <span className="text-slate-500 block mb-1">Garansi Keamanan:</span>
+                <span className="font-bold text-sm text-emerald-600 flex items-center gap-1">
                   <ShieldCheck className="w-4 h-4" /> 100% Anti-Banned Manual
                 </span>
               </div>
@@ -319,8 +319,8 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
             {/* Timeline of Proof Screenshots & Notes */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center space-x-2">
-                <Camera className="w-5 h-5 text-amber-400" />
-                <h3 className="font-tactical text-lg font-bold text-white uppercase tracking-wider">
+                <Camera className="w-5 h-5 text-amber-600" />
+                <h3 className="font-tactical text-lg font-bold text-slate-900 uppercase tracking-wider">
                   LOG & BUKTI SCREENSHOT PENGERJAAN
                 </h3>
               </div>
@@ -330,10 +330,10 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   {selectedOrder.progressHistory.map((item, idx) => (
                     <div
                       key={item.id || idx}
-                      className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col sm:flex-row gap-4"
+                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row gap-4"
                     >
                       {item.imageUrl && (
-                        <div className="sm:w-48 h-32 rounded-lg overflow-hidden border border-zinc-800 shrink-0 relative group">
+                        <div className="sm:w-48 h-32 rounded-lg overflow-hidden border border-slate-200 shrink-0 relative group">
                           <img
                             src={item.imageUrl}
                             alt="Bukti Joki Arena Breakout"
@@ -347,20 +347,20 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
 
                       <div className="flex-1 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
-                          <span className="font-bold text-amber-400">
+                          <span className="font-bold text-amber-700">
                             {item.workerName} • Progress {item.progressPercent}%
                           </span>
-                          <span className="text-zinc-500 font-mono">
+                          <span className="text-slate-500 font-mono">
                             {formatDate(item.timestamp)}
                           </span>
                         </div>
 
-                        <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed bg-zinc-900/60 p-2.5 rounded-lg border border-zinc-800/60">
+                        <p className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200">
                           {item.note}
                         </p>
 
                         {item.koenAccumulated && (
-                          <div className="text-xs text-emerald-400 font-bold flex items-center gap-1">
+                          <div className="text-xs text-emerald-600 font-bold flex items-center gap-1">
                             <Coins className="w-3.5 h-3.5" />
                             Koen Terkumpul: {formatRupiah(item.koenAccumulated)}
                           </div>
@@ -370,16 +370,16 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="bg-zinc-950 p-6 rounded-xl border border-zinc-800 text-center text-xs text-zinc-500">
-                  <Clock className="w-8 h-8 mx-auto text-zinc-600 mb-2" />
+                <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 text-center text-xs text-slate-500">
+                  <Clock className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                   Belum ada log pengerjaan yang diunggah joki. Log dan tangkapan layar akan otomatis muncul di sini saat proses raid berjalan.
                 </div>
               )}
             </div>
 
             {/* Direct WhatsApp Contact Button for this Order */}
-            <div className="pt-4 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-zinc-400 text-center sm:text-left">
+            <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-xs text-slate-500 text-center sm:text-left">
                 Butuh bantuan atau ingin konfirmasi akun dengan joki?
               </span>
 
@@ -390,7 +390,7 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
                 )}
                 target="_blank"
                 rel="noreferrer"
-                className="w-full sm:w-auto px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 shadow-lg transition-all"
+                className="w-full sm:w-auto px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 shadow-md transition-all"
               >
                 <MessageCircle className="w-4 h-4" />
                 <span>Chat Admin / Joki di WhatsApp</span>
@@ -400,13 +400,13 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
           </div>
         </div>
       ) : hasSearched ? (
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-8 text-center max-w-md mx-auto space-y-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center max-w-md mx-auto space-y-3 shadow-sm">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
-          <h3 className="text-lg font-bold font-tactical text-white uppercase">
+          <h3 className="text-lg font-bold font-tactical text-slate-900 uppercase">
             PESANAN TIDAK DITEMUKAN
           </h3>
-          <p className="text-xs text-zinc-400">
-            Tidak ditemukan data pesanan dengan kata kunci <code className="text-amber-400">"{searchQuery}"</code>. Pastikan nomor invoice atau no WhatsApp sudah benar.
+          <p className="text-xs text-slate-600">
+            Tidak ditemukan data pesanan dengan kata kunci <code className="text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">"{searchQuery}"</code>. Pastikan nomor invoice atau no WhatsApp sudah benar.
           </p>
         </div>
       ) : null}

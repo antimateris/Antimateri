@@ -69,14 +69,14 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
       
       {/* Top Banner */}
       <div className="text-center max-w-2xl mx-auto space-y-2">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/30 text-green-300 text-xs font-semibold">
-          <Headphones className="w-3.5 h-3.5 text-green-400" />
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+          <Headphones className="w-3.5 h-3.5 text-emerald-600" />
           <span>Layanan Pelanggan WhatsApp 24/7 Terintegrasi</span>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-bold font-tactical text-white uppercase tracking-wider">
+        <h1 className="text-3xl sm:text-4xl font-bold font-tactical text-slate-900 uppercase tracking-wider">
           PUSAT BANTUAN & CS WHATSAPP LANGSUNG
         </h1>
-        <p className="text-xs sm:text-sm text-zinc-400">
+        <p className="text-xs sm:text-sm text-slate-600">
           Tim support dan admin joki kami siap membantu kebutuhan konsultasi, pertanyaan, dan konfirmasi akun Anda via WhatsApp resmi.
         </p>
       </div>
@@ -84,16 +84,16 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
         {/* Left: Interactive Quick Chat Launcher */}
-        <div className="lg:col-span-7 bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 sm:p-7 shadow-xl space-y-6">
-          <div className="flex items-center space-x-3 pb-4 border-b border-zinc-800">
-            <div className="w-10 h-10 rounded-xl bg-green-500/20 border border-green-500/40 flex items-center justify-center text-green-400">
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
+          <div className="flex items-center space-x-3 pb-4 border-b border-slate-200">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700">
               <MessageCircle className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white font-tactical uppercase tracking-wider">
+              <h2 className="text-lg font-bold text-slate-900 font-tactical uppercase tracking-wider">
                 KIRIM PESAN LANGSUNG KE WHATSAPP ADMIN
               </h2>
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-slate-500">
                 Pilih topik di bawah untuk membuka template chat otomatis
               </p>
             </div>
@@ -101,7 +101,7 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
 
           <form onSubmit={handleOpenWhatsApp} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-2">
+              <label className="block text-xs font-semibold uppercase text-slate-700 mb-2">
                 Pilih Topik Konsultasi:
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -110,10 +110,10 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
                     key={t.id}
                     type="button"
                     onClick={() => setSelectedTopic(t.id)}
-                    className={`p-2.5 rounded-xl text-left text-xs font-medium border transition-all ${
+                    className={`p-2.5 rounded-xl text-left text-xs font-medium border transition-all cursor-pointer ${
                       selectedTopic === t.id
-                        ? 'border-green-500 bg-green-500/10 text-green-300 font-bold'
-                        : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
                     {t.label}
@@ -123,7 +123,7 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
                 Tuliskan Pertanyaan / Pesan Anda:
               </label>
               <textarea
@@ -132,14 +132,14 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
                 value={userQuery}
                 onChange={(e) => setUserQuery(e.target.value)}
                 placeholder="Contoh: Halo min, mau tanya slot joki Mandor Armory malam ini apakah ready squad?..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
             </div>
 
             <button
               type="submit"
               id="btn-submit-cs-whatsapp"
-              className="w-full py-3.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white font-extrabold font-tactical uppercase tracking-wider text-sm rounded-xl shadow-lg shadow-green-600/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold font-tactical uppercase tracking-wider text-sm rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >
               <MessageCircle className="w-5 h-5" />
               <span>Buka Chat WhatsApp Sekarang</span>
@@ -147,46 +147,46 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
           </form>
 
           {/* Quick CS Stats Info */}
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-zinc-800/80 text-xs">
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-              <span className="text-zinc-500 block mb-0.5">Jam Operasional:</span>
-              <span className="font-bold text-zinc-200">{settings.csWorkingHours}</span>
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-200 text-xs">
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-slate-500 block mb-0.5">Jam Operasional:</span>
+              <span className="font-bold text-slate-800">{settings.csWorkingHours}</span>
             </div>
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-              <span className="text-zinc-500 block mb-0.5">Kecepatan Respon:</span>
-              <span className="font-bold text-emerald-400">~1 - 3 Menit (Fast Response)</span>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <span className="text-slate-500 block mb-0.5">Kecepatan Respon:</span>
+              <span className="font-bold text-emerald-600">~1 - 3 Menit (Fast Response)</span>
             </div>
           </div>
         </div>
 
         {/* Right: Guarantee & FAQ accordion */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-4">
-            <div className="flex items-center space-x-2.5 text-amber-400 font-tactical font-bold text-base uppercase">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center space-x-2.5 text-amber-600 font-tactical font-bold text-base uppercase">
               <ShieldCheck className="w-5 h-5" />
               <span>GARANSI & KEAMANAN BREAKOUTOPS</span>
             </div>
 
-            <ul className="space-y-2.5 text-xs text-zinc-300">
+            <ul className="space-y-2.5 text-xs text-slate-600">
               <li className="flex items-start space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span><strong>Garansi Anti-Minus:</strong> Jika terjadi lose gear yang tidak sesuai perjanjian, joki siap ganti rugi.</span>
               </li>
               <li className="flex items-start space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span><strong>Privasi Terjaga:</strong> Password & credential tidak disimpan di database publik.</span>
               </li>
               <li className="flex items-start space-x-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
                 <span><strong>No Cheat / Mod:</strong> 100% manual gameplay oleh player pro tier Legend.</span>
               </li>
             </ul>
           </div>
 
           {/* FAQ Accordion */}
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 shadow-xl space-y-3">
-            <div className="flex items-center space-x-2 text-white font-tactical font-bold text-base uppercase mb-2">
-              <HelpCircle className="w-5 h-5 text-amber-400" />
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <div className="flex items-center space-x-2 text-slate-900 font-tactical font-bold text-base uppercase mb-2">
+              <HelpCircle className="w-5 h-5 text-amber-600" />
               <span>PERTANYAAN SERING DITANYAKAN (FAQ)</span>
             </div>
 
@@ -195,18 +195,18 @@ export const CustomerServicePage: React.FC<CustomerServicePageProps> = ({ settin
               return (
                 <div
                   key={idx}
-                  className="bg-zinc-950 rounded-xl border border-zinc-800 overflow-hidden"
+                  className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden"
                 >
                   <button
                     type="button"
                     onClick={() => setFaqOpen(isOpen ? null : idx)}
-                    className="w-full p-3.5 text-left text-xs font-bold text-zinc-200 hover:text-amber-400 flex items-center justify-between transition-colors"
+                    className="w-full p-3.5 text-left text-xs font-bold text-slate-800 hover:text-amber-700 flex items-center justify-between transition-colors cursor-pointer"
                   >
                     <span>{faq.q}</span>
-                    <ChevronDown className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-amber-400' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180 text-amber-600' : ''}`} />
                   </button>
                   {isOpen && (
-                    <div className="px-3.5 pb-3.5 text-xs text-zinc-400 leading-relaxed border-t border-zinc-800/60 pt-2">
+                    <div className="px-3.5 pb-3.5 text-xs text-slate-600 leading-relaxed border-t border-slate-200 pt-2">
                       {faq.a}
                     </div>
                   )}

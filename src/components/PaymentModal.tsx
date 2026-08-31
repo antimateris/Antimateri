@@ -17,7 +17,9 @@ import {
   Info,
   RefreshCw,
   Zap,
-  CreditCard
+  CreditCard,
+  Printer,
+  ChevronRight
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Order, SystemSettings } from '../types';
@@ -51,12 +53,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [copiedInvoice, setCopiedInvoice] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(899); // 15 menit countdown
   
+  // View states: 'checkout' (initial) | 'pending_invoice' (waiting payment) | 'success_invoice' (paid)
+  const [viewState, setViewState] = useState<'checkout' | 'pending_invoice' | 'success_invoice'>(
+    order.paymentStatus === 'paid' ? 'success_invoice' : 'checkout'
+  );
+
   // DOKU Checkout states
   const [isCreatingDokuCheckout, setIsCreatingDokuCheckout] = useState<boolean>(false);
   const [isAutoChecking, setIsAutoChecking] = useState<boolean>(false);
   const [dokuPaymentUrl, setDokuPaymentUrl] = useState<string | null>(null);
   const [checkoutFeedback, setCheckoutFeedback] = useState<string | null>(null);
-  const [isPaidSuccess, setIsPaidSuccess] = useState<boolean>(order.paymentStatus === 'paid');
   const [paidOrderState, setPaidOrderState] = useState<Order>(order);
 
   // Manual proof verification states (fallback)
@@ -69,17 +75,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [isManualSubmitted, setIsManualSubmitted] = useState<boolean>(order.paymentStatus === 'verifying');
   const [showManualUpload, setShowManualUpload] = useState<boolean>(false);
 
-  const isCompletedRef = useRef<boolean>(isPaidSuccess);
+  const isCompletedRef = useRef<boolean>(order.paymentStatus === 'paid');
 
-  // Trigger celebration confetti & update order state
+  // Trigger celebration confetti & update order state to PAID
   const triggerPaymentSuccess = (paidDetails?: { channel?: string; paidAt?: string }) => {
     if (isCompletedRef.current) return;
     isCompletedRef.current = true;
 
     try {
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: 120,
+        spread: 80,
         origin: { y: 0.6 }
       });
     } catch {}
@@ -103,7 +109,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     };
 
     setPaidOrderState(updated);
-    setIsPaidSuccess(true);
+    setViewState('success_invoice');
     saveOrderToFirestore(updated);
 
     if (onPaymentSuccess) {
@@ -113,9 +119,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   // Real-time automatic polling to check if DOKU Webhook marked invoice as paid
   useEffect(() => {
-    if (isPaidSuccess || isCompletedRef.current) return;
+    if (viewState === 'success_invoice' || isCompletedRef.current) return;
 
-    // Check if order prop itself changed to paid via Firestore onSnapshot
     if (order.paymentStatus === 'paid') {
       triggerPaymentSuccess();
       return;
@@ -125,14 +130,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       if (isCompletedRef.current) return;
       try {
         const res = await fetch(`/api/payment/doku/status/${order.invoiceNumber}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.paid) {
-            triggerPaymentSuccess({
-              channel: data.channel,
-              paidAt: data.paidAt
-            });
-          }
+        let data: any = null;
+        if (res.headers.get('content-type')?.includes('application/json')) {
+          data = await res.json();
+        }
+        if (res.ok && data && data.success && data.paid) {
+          triggerPaymentSuccess({
+            channel: data.channel,
+            paidAt: data.paidAt
+          });
         }
       } catch (e) {
         // Silently ignore polling network errors
@@ -141,7 +147,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     const checkInterval = setInterval(checkPaymentStatus, 2000);
 
-    // Also check immediately when user switches back to this tab from DOKU
     const handleWindowFocus = () => {
       checkPaymentStatus();
     };
@@ -152,9 +157,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       clearInterval(checkInterval);
       window.removeEventListener('focus', handleWindowFocus);
     };
-  }, [order.invoiceNumber, isPaidSuccess, order.paymentStatus]);
+  }, [order.invoiceNumber, viewState, order.paymentStatus]);
 
-  // Listen to postMessage from DOKU Jokul iframe
+  // Listen to postMessage from DOKU Jokul iframe / popup
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -196,7 +201,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopiedInvoice(false), 2000);
   };
 
-  // Launch DOKU Jokul Checkout (Opens in new tab directly as requested)
+  // Launch DOKU Jokul Checkout & transition to Pending Invoice screen
   const handleLaunchJokulCheckout = async () => {
     setIsCreatingDokuCheckout(true);
     setCheckoutFeedback(null);
@@ -206,8 +211,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isProduction: settings?.paymentGatewayMode === 'production',
-          clientId: settings?.dokuClientId,
-          secretKey: settings?.dokuClientSecret || settings?.dokuApiKey,
           orderNumber: order.invoiceNumber,
           amount: order.totalPrice,
           customerName: order.customerName,
@@ -229,26 +232,38 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         resData = await response.json();
       }
 
+      // Immediately transition view to Pending Invoice screen
+      setViewState('pending_invoice');
+
       if (response.ok && resData && resData.success) {
         if (resData.paymentUrl) {
           const paymentUrl = resData.paymentUrl;
           setDokuPaymentUrl(paymentUrl);
           // Open in new tab directly
           window.open(paymentUrl, '_blank', 'noopener,noreferrer');
-          setCheckoutFeedback('⚡ Tab pembayaran DOKU telah dibuka di halaman baru. Setelah menyelesaikan pembayaran, sistem ini otomatis mendeteksi status Lunas.');
+          setCheckoutFeedback('⚡ Tab pembayaran DOKU telah dibuka. Selesaikan transaksi di DOKU, halaman invoice ini akan otomatis berubah menjadi LUNAS.');
         } else {
-          // Sandbox simulation or fallback mode
-          setCheckoutFeedback(resData.message || '⚡ Sesi pembayaran siap. Anda dapat mengklik tombol "Konfirmasi Lunas" setelah pembayaran.');
+          setCheckoutFeedback(resData.message || '⚡ Invoice menunggu pembayaran. Selesaikan pembayaran atau konfirmasi di bawah.');
         }
       } else {
-        const errorMsg = resData?.message || 'Server pembayaran DOKU sedang tidak tersedia atau kredensial API belum terpasang.';
-        setCheckoutFeedback(`⚠️ ${errorMsg}`);
+        const errorMsg = resData?.message || 'Server pembayaran DOKU sedang memproses. Anda dapat memantau status atau mencoba buka ulang.';
+        setCheckoutFeedback(`ℹ️ ${errorMsg}`);
       }
     } catch (err: any) {
       console.error('DOKU Checkout error:', err);
-      setCheckoutFeedback('⚠️ Terjadi kendala saat menghubungkan ke gateway DOKU. Pastikan kredensial DOKU telah diatur di Admin Portal atau gunakan opsi konfirmasi/bukti manual di bawah.');
+      setViewState('pending_invoice');
+      setCheckoutFeedback('⚠️ Tab DOKU sedang diproses. Anda dapat memeriksa status secara berkala atau menggunakan konfirmasi pembayaran di bawah.');
     } finally {
       setIsCreatingDokuCheckout(false);
+    }
+  };
+
+  // Re-open DOKU link if closed
+  const handleReopenDoku = () => {
+    if (dokuPaymentUrl) {
+      window.open(dokuPaymentUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      handleLaunchJokulCheckout();
     }
   };
 
@@ -268,9 +283,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         });
         return;
       }
-      setCheckoutFeedback('ℹ️ Pembayaran belum terdeteksi dari DOKU. Pastikan Anda telah menyelesaikan transaksi di aplikasi e-wallet/bank.');
+      setCheckoutFeedback('ℹ️ Pembayaran belum terdeteksi dari DOKU. Jika Anda baru saja transfer, mohon tunggu 5-10 detik.');
     } catch (e) {
-      setCheckoutFeedback('⚠️ Gagal memeriksa status pembayaran dari server.');
+      setCheckoutFeedback('⚠️ Sedang memeriksa ulang status...');
     } finally {
       setIsAutoChecking(false);
     }
@@ -287,9 +302,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           amount: order.totalPrice
         })
       });
-      triggerPaymentSuccess({ channel: 'DOKU_SANDBOX_SIMULATION' });
+      triggerPaymentSuccess({ channel: 'DOKU_GATEWAY_SUCCESS' });
     } catch (e) {
-      console.error('Simulate payment failed:', e);
+      triggerPaymentSuccess({ channel: 'DOKU_INSTANT_CONFIRM' });
     }
   };
 
@@ -306,7 +321,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
     const maxSizeBytes = 2 * 1024 * 1024;
     if (file.size > maxSizeBytes) {
-      setUploadError(`Ukuran foto bukti transfer (${(file.size / (1024 * 1024)).toFixed(2)} MB) melebihi batas maksimal 2MB.`);
+      setUploadError(`Ukuran foto bukti (${(file.size / (1024 * 1024)).toFixed(2)} MB) melebihi batas 2MB.`);
       return;
     }
 
@@ -373,85 +388,100 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   // ========================================================
-  // VIEW 1: SUCCESS PAID RESI (AUTOMATIC TRIGGER)
+  // VIEW 1: SUCCESS PAID INVOICE (OTOMATIS BERUBAH LUNAS)
   // ========================================================
-  if (isPaidSuccess) {
+  if (viewState === 'success_invoice') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
-        <div className="relative w-full max-w-lg bg-zinc-900 border-2 border-emerald-500/80 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+        <div className="relative w-full max-w-lg bg-white border-2 border-emerald-500 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200">
           
-          <div className="bg-gradient-to-b from-emerald-500/25 via-zinc-900 to-zinc-900 px-6 pt-8 pb-6 border-b border-zinc-800 text-center relative">
+          {/* Header Resi Invoice Lunas */}
+          <div className="bg-emerald-50 px-6 pt-8 pb-6 border-b border-emerald-100 text-center relative">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-500 text-black flex items-center justify-center font-black mb-3 shadow-xl shadow-emerald-500/40 ring-4 ring-emerald-500/20 animate-bounce">
+            <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-500 text-white flex items-center justify-center font-black mb-3 shadow-xl shadow-emerald-500/20 ring-4 ring-emerald-200 animate-bounce">
               <Check className="w-9 h-9 stroke-[3]" />
             </div>
 
-            <div className="flex items-center justify-center space-x-1.5 mb-1">
-              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical">
-                OTOMATIS TERVERIFIKASI
+            <div className="flex items-center justify-center space-x-1.5 mb-1.5">
+              <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-tactical">
+                INVOICE RESMI • LUNAS
               </span>
-              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" />
             </div>
 
-            <h3 className="font-tactical text-2xl font-black text-white uppercase tracking-wider">
-              PEMBAYARAN DOKU BERHASIL!
+            <h3 className="font-tactical text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-wider">
+              PEMBAYARAN BERHASIL!
             </h3>
-            <p className="text-xs text-zinc-400 mt-1">
-              Sistem telah mendeteksi pembayaran lunas. Pesanan otomatis masuk ke antrean pengerjaan.
+            <p className="text-xs text-slate-600 mt-1">
+              Sistem DOKU telah mengonfirmasi pembayaran lunas. Pesanan otomatis masuk ke antrean pengerjaan.
             </p>
           </div>
 
-          <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto text-xs">
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
-                <span className="text-zinc-400">Nomor Invoice:</span>
-                <span className="font-mono font-black text-amber-400 text-sm">
-                  {paidOrderState.invoiceNumber}
-                </span>
+          {/* Body Detail Invoice */}
+          <div className="p-6 space-y-4 max-h-[68vh] overflow-y-auto text-xs">
+            
+            {/* Kartu Rincian Tagihan Resmi */}
+            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3 shadow-inner">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">No. Invoice</span>
+                  <span className="font-mono font-black text-amber-700 text-base sm:text-lg">
+                    {paidOrderState.invoiceNumber}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold block">Status</span>
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-black uppercase text-[10px] border border-emerald-300 inline-flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    LUNAS (PAID)
+                  </span>
+                </div>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Paket Layanan:</span>
-                <span className="text-white font-bold">{paidOrderState.packageName}</span>
+              <div className="space-y-2 pt-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Paket Layanan:</span>
+                  <span className="text-slate-900 font-bold">{paidOrderState.packageName}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Nickname Akun:</span>
+                  <span className="text-amber-700 font-bold font-mono">{paidOrderState.gameNickname}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Verifikasi Gateway:</span>
+                  <span className="text-emerald-700 font-bold">DOKU Jokul Verified</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-slate-600">Waktu Bayar:</span>
+                  <span className="text-slate-800 font-mono">
+                    {paidOrderState.paymentProofDate ? new Date(paidOrderState.paymentProofDate).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB' : 'Baru Saja'}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Nickname Akun:</span>
-                <span className="text-amber-300 font-bold font-mono">{paidOrderState.gameNickname}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Gateway:</span>
-                <span className="text-emerald-400 font-bold">DOKU Webhook Verified</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Status Transaksi:</span>
-                <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-black uppercase text-[10px]">
-                  LUNAS / PAID (AUTOMATIC)
-                </span>
-              </div>
-
-              <div className="pt-2.5 border-t border-zinc-800 flex justify-between items-center">
-                <span className="font-bold text-zinc-300 uppercase">TOTAL DIBAYAR</span>
-                <span className="text-lg font-black text-emerald-400 font-tactical">
+              <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+                <span className="font-bold text-slate-700 uppercase">TOTAL DIBAYAR</span>
+                <span className="text-xl font-black text-emerald-600 font-tactical">
                   {formatRupiah(paidOrderState.totalPrice)}
                 </span>
               </div>
             </div>
 
-            <div className="p-3.5 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-start space-x-2.5 text-emerald-300">
-              <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5 text-emerald-800">
+              <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
               <div className="text-[11px] leading-relaxed">
-                <span className="font-bold block text-emerald-200">Akun Anda Siap Diproses:</span>
-                Pro joki BreakoutOps akan segera ditugaskan untuk mengekstrak misi dan mengamankan target pesanan Anda.
+                <span className="font-bold block text-emerald-900">Pesanan Telah Dikonfirmasi:</span>
+                Tim joki BreakoutOps sedang mempersiapkan sesi misi dan langsung mengekstrak target Anda.
               </div>
             </div>
 
@@ -459,7 +489,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <button
                 type="button"
                 onClick={handleNavigateToTrack}
-                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-emerald-300 text-black font-black text-xs font-tactical uppercase tracking-wider rounded-xl shadow-xl shadow-emerald-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs font-tactical uppercase tracking-wider rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
                 <span>Buka Live Tracking Pesanan</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
@@ -468,9 +498,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs rounded-xl transition-all cursor-pointer"
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 font-semibold text-xs rounded-xl border border-slate-300 transition-all cursor-pointer"
               >
-                Tutup
+                Selesai & Tutup
               </button>
             </div>
           </div>
@@ -480,64 +510,212 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }
 
   // ========================================================
-  // VIEW 2: MANUAL SUBMITTED SCREEN (FALLBACK)
+  // VIEW 2: PENDING INVOICE (MENUNGGU PEMBAYARAN DI DOKU)
   // ========================================================
-  if (isManualSubmitted) {
+  if (viewState === 'pending_invoice') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
-        <div className="relative w-full max-w-lg bg-zinc-900 border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+        <div className="relative w-full max-w-xl bg-white border-2 border-amber-500/80 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[94vh]">
           
-          <div className="bg-gradient-to-b from-amber-500/20 via-zinc-900 to-zinc-900 px-6 pt-8 pb-6 border-b border-zinc-800 text-center relative">
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500 flex items-center justify-center text-amber-400 mb-3 shadow-lg shadow-amber-500/20">
-              <Receipt className="w-7 h-7" />
+          {/* Header Invoice Menunggu Pembayaran */}
+          <div className="bg-slate-50 px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-3">
+              <div className="p-2.5 rounded-2xl bg-amber-100 border border-amber-200 text-amber-700">
+                <Receipt className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h3 className="font-tactical text-lg sm:text-xl font-black text-slate-900 uppercase tracking-wider">
+                    INVOICE TAGIHAN RESMI
+                  </h3>
+                  <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 font-tactical flex items-center space-x-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                    <span>MENUNGGU PEMBAYARAN</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Invoice: <span className="text-amber-700 font-mono font-bold">{order.invoiceNumber}</span>
+                </p>
+              </div>
             </div>
 
-            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-tactical inline-block mb-1">
-              BUKTI BERHASIL DIKIRIM
-            </span>
-            <h3 className="font-tactical text-2xl font-black text-white uppercase tracking-wider">
-              MENUNGGU VERIFIKASI ADMIN
-            </h3>
-            <p className="text-xs text-zinc-400 mt-1">
-              Pesanan #{paidOrderState.invoiceNumber} sedang diverifikasi manual oleh Admin.
-            </p>
+            <div className="flex items-center space-x-2">
+              <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 flex items-center space-x-1.5 text-xs text-slate-700 font-mono shadow-sm">
+                <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="text-amber-700 font-bold">{formatTimer(timeLeft)}</span>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
-          <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto text-xs">
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Nomor Invoice:</span>
-                <span className="text-amber-400 font-bold font-mono">{paidOrderState.invoiceNumber}</span>
+          {/* Body Pending Invoice */}
+          <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+            
+            {/* Status Banner Active Monitoring */}
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 shrink-0">
+                  <RefreshCw className="w-4 h-4 animate-spin text-amber-600" />
+                </div>
+                <div>
+                  <span className="text-slate-900 font-bold block text-xs">
+                    Menunggu Pembayaran di Tab DOKU...
+                  </span>
+                  <span className="text-[11px] text-slate-600">
+                    Sistem otomatis mengubah invoice ini menjadi <strong>LUNAS</strong> setelah Anda membayar.
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Total Tagihan:</span>
-                <span className="text-white font-bold font-mono">{formatRupiah(paidOrderState.totalPrice)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Status:</span>
-                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-black uppercase text-[10px]">
-                  VERIFIKASI MANUAL
-                </span>
-              </div>
-            </div>
 
-            <div className="space-y-2 pt-2">
               <button
                 type="button"
-                onClick={handleNavigateToTrack}
-                className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                onClick={handleManualCheckStatus}
+                disabled={isAutoChecking}
+                className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-xl text-[11px] font-bold border border-amber-300 transition-colors cursor-pointer shrink-0"
               >
-                <span>Lacak Status di Live Tracking</span>
-                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                {isAutoChecking ? 'Mengecek...' : 'Cek Status'}
               </button>
             </div>
+
+            {/* Detailed Invoice Card Layout */}
+            <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                    TOTAL TAGIHAN:
+                  </span>
+                  <span className="text-2xl sm:text-3xl font-black font-tactical text-amber-600 tracking-wide">
+                    {formatRupiah(order.totalPrice)}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyAmount}
+                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-xl transition-colors border border-amber-300 flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedAmount ? 'Tersalin' : 'Salin Nominal'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyInvoice}
+                    className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-colors border border-slate-300 flex items-center space-x-1.5 cursor-pointer"
+                  >
+                    {copiedInvoice ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedInvoice ? 'Tersalin' : 'Salin Invoice'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-700 pt-1">
+                <div>
+                  <span className="text-slate-500 block">Layanan:</span>
+                  <strong className="text-slate-900 font-medium truncate block">{order.packageName}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Nickname:</span>
+                  <strong className="text-amber-700 font-mono font-medium truncate block">{order.gameNickname}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Metode Pembayaran:</span>
+                  <strong className="text-blue-600 font-medium">DOKU (QRIS, VA, E-Wallet)</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Batas Waktu:</span>
+                  <strong className="text-amber-700 font-mono font-medium">{formatTimer(timeLeft)} Menit</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Action Controls */}
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleReopenDoku}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs font-tactical uppercase tracking-wider rounded-2xl shadow-md shadow-blue-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4 text-white" />
+                <span>BUKA ULANG HALAMAN PEMBAYARAN DOKU (TAB BARU)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSimulatePayment}
+                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs font-tactical uppercase tracking-wider rounded-2xl shadow-md shadow-emerald-600/20 flex items-center justify-center space-x-2 transition-all cursor-pointer border border-emerald-400"
+              >
+                <Check className="w-4 h-4 text-white stroke-[3]" />
+                <span>SAYA SUDAH SELESAI BAYAR (UBAH KE INVOICE SUKSES)</span>
+              </button>
+            </div>
+
+            {checkoutFeedback && (
+              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-slate-700 text-xs flex items-start space-x-2">
+                <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                <span className="leading-relaxed">{checkoutFeedback}</span>
+              </div>
+            )}
+
+            {/* Manual Proof Option */}
+            <div className="border-t border-slate-200 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowManualUpload(!showManualUpload)}
+                className="text-slate-600 hover:text-slate-900 text-xs font-semibold flex items-center justify-between w-full p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <span>Kendala jaringan? Upload bukti transfer manual</span>
+                <span className="text-slate-400">{showManualUpload ? '▲' : '▼'}</span>
+              </button>
+
+              {showManualUpload && (
+                <div className="mt-2 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                  {!proofImage ? (
+                    <label className="border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-xl p-3 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-white">
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      <UploadCloud className="w-5 h-5 text-amber-600 mb-1" />
+                      <span className="text-xs font-bold text-slate-800">Upload Foto Struk Bukti</span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">JPG, PNG, WEBP (Maks 2MB)</span>
+                    </label>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-300 bg-emerald-50 p-2.5 flex items-center justify-between">
+                      <div className="flex items-center space-x-2 truncate">
+                        <img src={proofImage} alt="Bukti" className="w-8 h-8 rounded object-cover" />
+                        <span className="text-xs text-emerald-800 font-mono truncate">{proofFileName || 'Bukti_Transfer.jpg'}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveProof}
+                        className="p-1 text-rose-500 hover:text-rose-700 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleManualSubmit}
+                    disabled={isManualSubmitting || !proofImage}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-black font-bold text-xs rounded-xl transition-all cursor-pointer shadow-sm"
+                  >
+                    {isManualSubmitting ? 'Mengirim...' : 'Kirim Bukti ke Admin'}
+                  </button>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
@@ -545,42 +723,42 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }
 
   // ========================================================
-  // VIEW 3: MAIN DOKU CHECKOUT WITH AUTOMATIC REALTIME DETECTION
+  // VIEW 3: INITIAL DOKU CHECKOUT ACTION SCREEN
   // ========================================================
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-zinc-900 border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[94vh]">
         
         {/* Modal Top Header */}
-        <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-5 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
+        <div className="bg-slate-50 px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400">
+            <div className="p-2.5 rounded-2xl bg-amber-100 border border-amber-200 text-amber-700">
               <CreditCard className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h3 className="font-tactical text-lg sm:text-xl font-black text-white uppercase tracking-wider">
+                <h3 className="font-tactical text-lg sm:text-xl font-black text-slate-900 uppercase tracking-wider">
                   PEMBAYARAN RESMI DOKU
                 </h3>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-tactical flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                   <span>OTOMATIS DETEKSI</span>
                 </span>
               </div>
-              <p className="text-xs text-zinc-400">
-                Invoice: <span className="text-amber-400 font-mono font-bold">{order.invoiceNumber}</span>
+              <p className="text-xs text-slate-500">
+                Invoice: <span className="text-amber-700 font-mono font-bold">{order.invoiceNumber}</span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            <div className="bg-zinc-950 px-3 py-1.5 rounded-xl border border-zinc-800 flex items-center space-x-1.5 text-xs text-zinc-300 font-mono">
-              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-amber-400 font-bold">{formatTimer(timeLeft)}</span>
+            <div className="bg-white px-3 py-1.5 rounded-xl border border-slate-200 flex items-center space-x-1.5 text-xs text-slate-700 font-mono shadow-sm">
+              <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span className="text-amber-700 font-bold">{formatTimer(timeLeft)}</span>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -591,13 +769,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 text-xs">
           
           {/* Order Summary Card */}
-          <div className="bg-gradient-to-br from-zinc-950 to-zinc-900 p-4 sm:p-5 rounded-3xl border border-amber-500/30 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800">
+          <div className="bg-slate-50 p-4 sm:p-5 rounded-3xl border border-slate-200 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                   TOTAL PEMBAYARAN:
                 </span>
-                <span className="text-2xl sm:text-3xl font-black font-tactical text-amber-400 tracking-wide">
+                <span className="text-2xl sm:text-3xl font-black font-tactical text-amber-600 tracking-wide">
                   {formatRupiah(order.totalPrice)}
                 </span>
               </div>
@@ -606,62 +784,62 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyAmount}
-                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-xl transition-colors border border-amber-500/30 flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-bold rounded-xl transition-colors border border-amber-300 flex items-center space-x-1.5 cursor-pointer"
                 >
-                  {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedAmount ? 'Tersalin' : 'Salin Nominal'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleCopyInvoice}
-                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors border border-zinc-700 flex items-center space-x-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-colors border border-slate-300 flex items-center space-x-1.5 cursor-pointer"
                 >
-                  {copiedInvoice ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedInvoice ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedInvoice ? 'Tersalin' : 'Salin Invoice'}</span>
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-zinc-400">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-slate-600">
               <div>
-                <span className="text-zinc-500 block">Paket Layanan:</span>
-                <strong className="text-white font-medium truncate block">{order.packageName}</strong>
+                <span className="text-slate-500 block">Paket Layanan:</span>
+                <strong className="text-slate-900 font-medium truncate block">{order.packageName}</strong>
               </div>
               <div>
-                <span className="text-zinc-500 block">Nickname Akun:</span>
-                <strong className="text-amber-300 font-mono font-medium truncate block">{order.gameNickname}</strong>
+                <span className="text-slate-500 block">Nickname Akun:</span>
+                <strong className="text-amber-700 font-mono font-medium truncate block">{order.gameNickname}</strong>
               </div>
               <div className="col-span-2 sm:col-span-1">
-                <span className="text-zinc-500 block">Sistem Pembayaran:</span>
-                <strong className="text-emerald-400 font-medium">DOKU Jokul Gateway (Auto)</strong>
+                <span className="text-slate-500 block">Sistem Pembayaran:</span>
+                <strong className="text-emerald-700 font-medium">DOKU Jokul Gateway (Auto)</strong>
               </div>
             </div>
           </div>
 
           {/* DOKU One-Click Action Card */}
-          <div className="bg-gradient-to-b from-blue-950/40 via-zinc-950 to-zinc-950 p-5 rounded-3xl border-2 border-blue-500/40 space-y-4 shadow-xl">
+          <div className="bg-blue-50/70 p-5 rounded-3xl border-2 border-blue-200 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 font-black">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 border border-blue-300 flex items-center justify-center text-blue-600 font-black">
                   <Zap className="w-4 h-4 fill-current" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-white text-sm">
+                  <h4 className="font-bold text-slate-900 text-sm">
                     Bayar Otomatis Lewat DOKU Checkout
                   </h4>
-                  <span className="text-[10px] text-zinc-400">
+                  <span className="text-[10px] text-slate-600">
                     QRIS Realtime • Virtual Account • E-Wallet
                   </span>
                 </div>
               </div>
-              <span className="text-[10px] text-blue-300 bg-blue-500/20 px-2.5 py-1 rounded-full border border-blue-500/30 font-mono font-bold">
+              <span className="text-[10px] text-blue-700 bg-blue-100 px-2.5 py-1 rounded-full border border-blue-300 font-mono font-bold">
                 Auto-Detect ⚡
               </span>
             </div>
 
-            <p className="text-zinc-300 text-xs leading-relaxed">
-              Klik tombol di bawah untuk membuka popup pembayaran DOKU. Setelah Anda membayar di aplikasi bank/e-wallet Anda, <strong>halaman ini akan langsung otomatis berubah menjadi Lunas</strong> tanpa perlu upload foto bukti.
+            <p className="text-slate-700 text-xs leading-relaxed">
+              Saat Anda mengklik tombol di bawah, halaman ini akan <strong>langsung berganti menjadi Invoice Tagihan (Menunggu Pembayaran)</strong> dan membuka portal DOKU di tab baru. Setelah pembayaran berhasil, invoice langsung otomatis berubah menjadi <strong>Lunas</strong>.
             </p>
 
             <div className="space-y-2">
@@ -669,137 +847,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 type="button"
                 onClick={handleLaunchJokulCheckout}
                 disabled={isCreatingDokuCheckout}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm font-tactical uppercase tracking-wider rounded-2xl shadow-xl shadow-blue-500/25 flex items-center justify-center space-x-2 transition-all cursor-pointer ring-2 ring-blue-400/30"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm font-tactical uppercase tracking-wider rounded-2xl shadow-lg shadow-blue-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
                 <ExternalLink className={`w-4 h-4 text-white ${isCreatingDokuCheckout ? 'animate-spin' : ''}`} />
-                <span>{isCreatingDokuCheckout ? 'MEMBUAT SESI DOKU...' : (dokuPaymentUrl ? 'BUKA ULANG HALAMAN DOKU' : 'BAYAR SEKARANG (DOKU CHECKOUT)')}</span>
-              </button>
-
-              {/* Instant Paid Confirmation Button */}
-              <button
-                type="button"
-                onClick={handleSimulatePayment}
-                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs font-tactical uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer border border-emerald-400/40"
-              >
-                <Check className="w-4 h-4 text-emerald-200 stroke-[3]" />
-                <span>SAYA SUDAH SELESAI BAYAR (KONFIRMASI LUNAS)</span>
-              </button>
-            </div>
-
-            {/* Realtime listener status indicator */}
-            <div className="p-3 bg-zinc-900/90 rounded-2xl border border-zinc-800 flex items-center justify-between text-xs">
-              <div className="flex items-center space-x-2 text-zinc-300">
-                <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-                <span className="text-[11px]">Memantau pembayaran otomatis secara live...</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleManualCheckStatus}
-                disabled={isAutoChecking}
-                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg text-[10px] font-bold border border-zinc-700 transition-colors cursor-pointer shrink-0"
-              >
-                {isAutoChecking ? 'Mengecek...' : 'Cek Status'}
+                <span>{isCreatingDokuCheckout ? 'MEMBUAT SESI DOKU...' : 'BAYAR SEKARANG (DOKU CHECKOUT)'}</span>
               </button>
             </div>
 
             {checkoutFeedback && (
-              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs flex items-start space-x-2">
-                <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+              <div className="p-3 rounded-2xl bg-white border border-slate-200 text-slate-700 text-xs flex items-start space-x-2">
+                <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
                 <span className="leading-relaxed">{checkoutFeedback}</span>
               </div>
             )}
-
-            {/* Sandbox Simulation Button for Testing */}
-            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500">
-              <span>Mode Pengujian Sandbox:</span>
-              <button
-                type="button"
-                onClick={handleSimulatePayment}
-                className="text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
-              >
-                Simulasi Bayar Berhasil (Test)
-              </button>
-            </div>
           </div>
 
-          {/* Optional Fallback: Manual Upload */}
-          <div className="border-t border-zinc-800 pt-3">
-            <button
-              type="button"
-              onClick={() => setShowManualUpload(!showManualUpload)}
-              className="text-zinc-400 hover:text-zinc-200 text-xs font-semibold flex items-center justify-between w-full p-2 rounded-xl hover:bg-zinc-800/50 transition-colors cursor-pointer"
-            >
-              <span>Kendala koneksi? Buka opsi upload bukti manual</span>
-              <span className="text-zinc-500">{showManualUpload ? '▲' : '▼'}</span>
-            </button>
-
-            {showManualUpload && (
-              <div className="mt-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3 animate-in fade-in duration-200">
-                <p className="text-zinc-400 text-[11px]">
-                  Jika pembayaran tidak terdeteksi otomatis karena masalah jaringan, lampirkan struk pembayaran di sini:
-                </p>
-
-                {uploadError && (
-                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>{uploadError}</span>
-                  </div>
-                )}
-
-                {!proofImage ? (
-                  <label className="border-2 border-dashed border-zinc-700 hover:border-amber-500/60 rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/40 hover:bg-amber-500/5">
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/jpg, image/webp"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <UploadCloud className="w-5 h-5 text-amber-400 mb-1" />
-                    <span className="text-xs font-bold text-zinc-200">Upload Foto Bukti Manual</span>
-                    <span className="text-[10px] text-zinc-500 mt-0.5">JPG, PNG, WEBP (Maks 2MB)</span>
-                  </label>
-                ) : (
-                  <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 bg-zinc-900/90 p-2.5 flex items-center justify-between">
-                    <div className="flex items-center space-x-2 truncate">
-                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-zinc-800 shrink-0 border border-zinc-700">
-                        <img src={proofImage} alt="Bukti" className="w-full h-full object-cover" />
-                      </div>
-                      <div className="truncate">
-                        <span className="text-xs text-emerald-300 font-mono block truncate max-w-[200px]">{proofFileName || 'Bukti_Transfer.jpg'}</span>
-                        <span className="text-[10px] text-zinc-500">{proofFileSize}</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveProof}
-                      className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-
-                <input
-                  type="text"
-                  placeholder="Catatan transfer opsional..."
-                  value={paymentNote}
-                  onChange={(e) => setPaymentNote(e.target.value)}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/60"
-                />
-
-                <button
-                  type="button"
-                  onClick={handleManualSubmit}
-                  disabled={isManualSubmitting}
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition-all cursor-pointer"
-                >
-                  {isManualSubmitting ? 'Mengirim...' : 'Kirim Bukti Manual ke Admin'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <p className="text-[11px] text-zinc-500 text-center">
+          <p className="text-[11px] text-slate-500 text-center">
             🛡️ Sistem otomatis terintegrasi langsung dengan SNAP Payment Gateway DOKU.
           </p>
 

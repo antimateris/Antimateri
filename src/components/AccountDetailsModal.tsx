@@ -117,23 +117,23 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto overscroll-contain">
-      <div className="relative w-full max-w-xl bg-zinc-900 border border-amber-500/40 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto overscroll-contain">
+      <div className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh] sm:max-h-[90vh] my-auto animate-in zoom-in-95 duration-200">
         
         {/* Header (Fixed at top) */}
-        <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
+        <div className="bg-slate-50 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
           <div>
-            <h3 className="font-tactical text-lg sm:text-xl font-bold text-white uppercase tracking-wider">
+            <h3 className="font-tactical text-lg sm:text-xl font-bold text-slate-900 uppercase tracking-wider">
               Data Akun & Kontak Pelanggan
             </h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5">
               {packageName} • {formatRupiah(totalPrice)}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+            className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -144,7 +144,7 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
           {/* Scrollable Form Body */}
           <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 sm:space-y-5 custom-scrollbar">
             {validationError && (
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-start space-x-2.5 text-rose-400 text-xs">
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start space-x-2.5 text-rose-700 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <div className="flex-1 font-medium">{validationError}</div>
               </div>
@@ -164,14 +164,14 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
             
             {/* Game Account Info */}
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-white uppercase tracking-wide border-b border-zinc-800/80 pb-2">
+              <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b border-slate-200 pb-2">
                 Informasi Akun Game Arena Breakout
               </h4>
               
               {/* Nickname */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                  Nickname Arena Breakout <span className="text-amber-400">*</span>
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
+                  Nickname Arena Breakout <span className="text-amber-600">*</span>
                 </label>
                 <input
                   type="text"
@@ -179,19 +179,19 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                   value={gameNickname}
                   onChange={(e) => setGameNickname(e.target.value)}
                   placeholder="Contoh: GhostOperator99"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               {/* Login Method */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                  Metode Login Akun <span className="text-amber-400">*</span>
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
+                  Metode Login Akun <span className="text-amber-600">*</span>
                 </label>
                 <select
                   value={loginMethod}
                   onChange={(e) => setLoginMethod(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 >
                   <option value="Level Infinite">Level Infinite Pass (Rekomendasi)</option>
                   <option value="Facebook">Facebook Login</option>
@@ -203,11 +203,11 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
               {/* Password Akun Game */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold uppercase text-zinc-300 flex items-center space-x-1.5">
-                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <label className="text-xs font-semibold uppercase text-slate-700 flex items-center space-x-1.5">
+                    <Lock className="w-3.5 h-3.5 text-amber-600" />
                     <span>Password / Kata Sandi Akun Game</span>
                   </label>
-                  <span className="text-[10px] text-amber-400 font-semibold uppercase tracking-wider">
+                  <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">
                     Privasi Dijamin
                   </span>
                 </div>
@@ -217,12 +217,12 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                     value={gamePassword}
                     onChange={(e) => setGamePassword(e.target.value)}
                     placeholder="Masukkan password akun game..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-4 pr-11 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-4 pr-11 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => setShowGamePassword(!showGamePassword)}
-                    className="absolute right-3 top-2.5 text-zinc-400 hover:text-zinc-200 transition-colors p-1"
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 transition-colors p-1"
                     title={showGamePassword ? 'Sembunyikan Password' : 'Lihat Password'}
                   >
                     {showGamePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -230,8 +230,8 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                 </div>
 
                 {/* Important Temporary Password Notice */}
-                <div className="mt-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start space-x-2 text-[11px] text-amber-300">
-                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+                <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-300 flex items-start space-x-2 text-[11px] text-amber-900">
+                  <ShieldCheck className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                   <div>
                     <span className="font-bold">Mohon Gunakan Password Sementara:</span> Demi keamanan maksimal akun Anda, disarankan untuk mengubah password menjadi password sementara saat memesan joki, dan menggantinya kembali setelah proses joki selesai 100%.
                   </div>
@@ -240,7 +240,7 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
 
               {/* User ID (Optional) */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
                   User ID Game (Opsional)
                 </label>
                 <input
@@ -248,13 +248,13 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                   value={gameUserId}
                   onChange={(e) => setGameUserId(e.target.value)}
                   placeholder="Contoh: 123456789"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               {/* Account Notes */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
                   Catatan Khusus untuk Joki (Opsional)
                 </label>
                 <textarea
@@ -262,21 +262,21 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                   value={accountNotes}
                   onChange={(e) => setAccountNotes(e.target.value)}
                   placeholder="Contoh: Senjata di Stash bebas pakai, mohon jangan jual kunci..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
             </div>
 
             {/* Customer Contact Info */}
             <div className="space-y-3 pt-2">
-              <h4 className="text-sm font-bold text-white uppercase tracking-wide border-b border-zinc-800/80 pb-2">
+              <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide border-b border-slate-200 pb-2">
                 Kontak Pelanggan
               </h4>
               
               {/* Full Name */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                  Nama Lengkap Anda <span className="text-amber-400">*</span>
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
+                  Nama Lengkap Anda <span className="text-amber-600">*</span>
                 </label>
                 <input
                   type="text"
@@ -284,14 +284,14 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Contoh: Bima Satria"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
               </div>
 
               {/* WhatsApp */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-300 mb-1.5">
-                  Nomor WhatsApp Aktif <span className="text-amber-400">*</span>
+                <label className="block text-xs font-semibold uppercase text-slate-700 mb-1.5">
+                  Nomor WhatsApp Aktif <span className="text-amber-600">*</span>
                 </label>
                 <input
                   type="tel"
@@ -299,9 +299,9 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
                   value={customerWhatsApp}
                   onChange={(e) => setCustomerWhatsApp(e.target.value)}
                   placeholder="081234567890"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                 />
-                <p className="text-[11px] text-zinc-500 mt-1">
+                <p className="text-[11px] text-slate-500 mt-1">
                   💬 Notifikasi update progres pengerjaan akan dikirim ke nomor ini
                 </p>
               </div>
@@ -309,17 +309,17 @@ export const AccountDetailsModal: React.FC<AccountDetailsModalProps> = ({
           </div>
 
           {/* Action Buttons (Fixed / Sticky Footer) */}
-          <div className="flex-shrink-0 p-3 sm:p-4 bg-zinc-950 border-t border-zinc-800 flex gap-3">
+          <div className="flex-shrink-0 p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-sm rounded-xl transition-all cursor-pointer"
+              className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold text-sm rounded-xl transition-all cursor-pointer"
             >
               Batal
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 cursor-pointer"
+              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold text-sm rounded-xl transition-all shadow-md shadow-amber-500/20 cursor-pointer"
             >
               Lanjut ke Pembayaran
             </button>
