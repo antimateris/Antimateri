@@ -57,32 +57,70 @@ export const TrackingPage: React.FC<TrackingPageProps> = ({
     }
   };
 
-  // Auto search ONLY when specific initial invoice/query is passed via URL or props
+  // Auto search when initial query is passed or when orders sync from Firestore
   useEffect(() => {
-    const query = initialInvoice || initialQuery;
-    if (query) {
+    const query = initialInvoice || initialQuery || searchQuery;
+    if (query && query.trim()) {
       setSearchQuery(query);
       handleSearch(query);
     }
-  }, [initialInvoice, initialQuery]);
+  }, [initialInvoice, initialQuery, orders]);
 
   const handleSearch = (queryToUse?: string) => {
-    const q = (queryToUse !== undefined ? queryToUse : searchQuery).trim().toLowerCase();
+    const rawQ = (queryToUse !== undefined ? queryToUse : searchQuery).trim();
     setHasSearched(true);
 
-    if (!q) {
+    if (!rawQ) {
       setSelectedOrder(null);
       return;
     }
 
-    const found = orders.find(
-      (o) =>
-        o.invoiceNumber.toLowerCase() === q ||
-        o.invoiceNumber.toLowerCase().includes(q) ||
-        o.customerWhatsApp.replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
-        o.gameNickname.toLowerCase() === q ||
-        o.gameNickname.toLowerCase().includes(q)
-    );
+    const q = rawQ.toLowerCase();
+    const cleanQ = rawQ.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const phoneQ = rawQ.replace(/\D/g, '');
+
+    // Combine prop orders with cached local orders for instant resilience
+    let allOrders = [...orders];
+    try {
+      const activeOrderStr = localStorage.getItem('breakoutops_active_order');
+      if (activeOrderStr) {
+        const activeOrder: Order = JSON.parse(activeOrderStr);
+        if (activeOrder && !allOrders.some(o => o.id === activeOrder.id || o.invoiceNumber === activeOrder.invoiceNumber)) {
+          allOrders.unshift(activeOrder);
+        }
+      }
+      const savedOrdersStr = localStorage.getItem('breakoutops_orders');
+      if (savedOrdersStr) {
+        const savedOrders: Order[] = JSON.parse(savedOrdersStr);
+        if (Array.isArray(savedOrders)) {
+          for (const s of savedOrders) {
+            if (!allOrders.some(o => o.id === s.id || o.invoiceNumber === s.invoiceNumber)) {
+              allOrders.push(s);
+            }
+          }
+        }
+      }
+    } catch {}
+
+    const found = allOrders.find((o) => {
+      if (!o || !o.invoiceNumber) return false;
+      const oInvClean = o.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+      const oInvLower = o.invoiceNumber.toLowerCase();
+      const oPhoneClean = (o.customerWhatsApp || '').replace(/\D/g, '');
+      const oNickLower = (o.gameNickname || '').toLowerCase();
+
+      // 1. Direct Invoice Match (with or without hyphens)
+      if (oInvLower === q || oInvClean === cleanQ) return true;
+      if (cleanQ.length >= 4 && (oInvClean.includes(cleanQ) || cleanQ.includes(oInvClean))) return true;
+
+      // 2. WhatsApp Number Match
+      if (phoneQ.length >= 5 && oPhoneClean.includes(phoneQ)) return true;
+
+      // 3. Nickname Match
+      if (q.length >= 3 && (oNickLower === q || oNickLower.includes(q))) return true;
+
+      return false;
+    });
 
     setSelectedOrder(found || null);
   };

@@ -87,14 +87,11 @@ router.post("/payment/doku/checkout", async (req, res) => {
       } catch {}
     }
 
-    const cleanBaseInvoice = String(orderNumber || "INV")
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .slice(0, 20);
-    const attemptSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const dokuInvoiceNumber = `${cleanBaseInvoice}${attemptSuffix}`.slice(0, 30);
+    const rawOrderNumber = String(orderNumber || "INV").trim();
+    const dokuInvoiceNumber = rawOrderNumber.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
 
-    const callbackUrl = `${originUrl}/?invoice_number=${cleanBaseInvoice}&status=success`;
-    const callbackUrlCancel = `${originUrl}/?invoice_number=${cleanBaseInvoice}&status=cancel`;
+    const callbackUrl = `${originUrl}/?invoice_number=${encodeURIComponent(rawOrderNumber)}&status=success&from_doku=1`;
+    const callbackUrlCancel = `${originUrl}/?invoice_number=${encodeURIComponent(rawOrderNumber)}&status=cancel&from_doku=1`;
 
     const totalAmount = Math.max(1000, Math.round(Number(amount) || 10000));
 
@@ -121,24 +118,50 @@ router.post("/payment/doku/checkout", async (req, res) => {
       order: {
         amount: totalAmount,
         invoice_number: dokuInvoiceNumber,
+        currency: "IDR",
         callback_url: callbackUrl,
         callback_url_cancel: callbackUrlCancel,
+        callback_url_result: callbackUrl,
+        language: "ID",
         auto_redirect: true,
+        disable_retry_payment: false,
         line_items: [
           {
+            id: dokuInvoiceNumber.slice(0, 10),
             name: lineItemName,
             price: totalAmount,
-            quantity: 1
+            quantity: 1,
+            category: "gaming-services",
+            type: "SERVICES"
           }
         ]
       },
       payment: {
-        payment_due_date: 60
+        payment_due_date: 60, // 60 minutes
+        type: "SALE",
+        payment_method_types: [
+          "QRIS",
+          "VIRTUAL_ACCOUNT_BCA",
+          "VIRTUAL_ACCOUNT_BANK_MANDIRI",
+          "VIRTUAL_ACCOUNT_BRI",
+          "VIRTUAL_ACCOUNT_BNI",
+          "VIRTUAL_ACCOUNT_BANK_PERMATA",
+          "VIRTUAL_ACCOUNT_BANK_CIMB",
+          "VIRTUAL_ACCOUNT_BANK_DANAMON",
+          "VIRTUAL_ACCOUNT_BNC",
+          "VIRTUAL_ACCOUNT_DOKU",
+          "ONLINE_TO_OFFLINE_ALFA",
+          "EMONEY_SHOPEEPAY",
+          "EMONEY_OVO",
+          "EMONEY_DANA"
+        ]
       },
       customer: {
+        id: `CUST-${dokuInvoiceNumber.slice(-6)}`,
         name: cleanCustomerName,
         email: cleanEmail,
-        phone: cleanPhone
+        phone: cleanPhone,
+        country: "ID"
       }
     };
 
@@ -190,7 +213,7 @@ router.post("/payment/doku/checkout", async (req, res) => {
             isSandboxFallback: true,
             simulated: true,
             totalAmount,
-            cleanBaseInvoice,
+            orderNumber: rawOrderNumber,
             message: `Mode Sandbox Aktif: ${errMsg || "Sesi checkout simulasi siap."}`,
             data: dokuData
           });
@@ -212,7 +235,7 @@ router.post("/payment/doku/checkout", async (req, res) => {
       isSandboxFallback: true,
       simulated: true,
       totalAmount,
-      cleanBaseInvoice,
+      orderNumber: rawOrderNumber,
       message: "Sesi checkout DOKU Sandbox siap. Anda dapat menyelesaikan pembayaran melalui QRIS simulasi atau transfer VA."
     });
   } catch (error: any) {
@@ -224,16 +247,48 @@ router.post("/payment/doku/checkout", async (req, res) => {
   }
 });
 
+// Helper to normalize invoice strings for comparison (removes non-alphanumeric)
+function normalizeInvoiceKey(str: string): string {
+  return String(str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+}
+
+// DOKU Signature Helper for GET /orders/v1/status/:invoiceNumber
+function generateDokuGetSignature({
+  clientId,
+  requestId,
+  requestTimestamp,
+  requestTarget,
+  secretKey
+}: {
+  clientId: string;
+  requestId: string;
+  requestTimestamp: string;
+  requestTarget: string;
+  secretKey: string;
+}): string {
+  const component = `Client-Id:${clientId}\nRequest-Id:${requestId}\nRequest-Timestamp:${requestTimestamp}\nRequest-Target:${requestTarget}`;
+  const hmac = crypto.createHmac("sha256", secretKey).update(component).digest("base64");
+  return `HMACSHA256=${hmac}`;
+}
+
 // API: Check status of an invoice
 router.get("/payment/doku/status/:invoiceNumber", async (req, res) => {
   const { invoiceNumber } = req.params;
+  const targetNorm = normalizeInvoiceKey(invoiceNumber);
   
+  // 1. Check local cache / webhook memory first
   let cached = dokuPaidInvoices.get(invoiceNumber);
 
   if (!cached || cached.status !== "SUCCESS") {
     for (const [key, val] of dokuPaidInvoices.entries()) {
       if (val.status === "SUCCESS") {
-        if (key.startsWith(invoiceNumber) || invoiceNumber.startsWith(key) || key.split("-").slice(0, 3).join("-") === invoiceNumber) {
+        const keyNorm = normalizeInvoiceKey(key);
+        if (
+          key === invoiceNumber ||
+          keyNorm === targetNorm ||
+          keyNorm.startsWith(targetNorm) ||
+          targetNorm.startsWith(keyNorm)
+        ) {
           cached = val;
           break;
         }
@@ -245,17 +300,111 @@ router.get("/payment/doku/status/:invoiceNumber", async (req, res) => {
     return res.json({
       success: true,
       paid: true,
-      status: "paid",
+      status: "SUCCESS",
       channel: cached.channel,
       paidAt: cached.paidAt,
-      message: "Pembayaran telah berhasil diverifikasi otomatis oleh DOKU Webhook"
+      amount: cached.amount,
+      message: "Pembayaran telah berhasil diverifikasi otomatis oleh DOKU"
     });
+  }
+
+  // 2. Query real DOKU Check Status API if credentials are provided in headers or environment
+  const headerClientId = req.headers["x-doku-client-id"] as string | undefined;
+  const headerSecretKey = req.headers["x-doku-secret-key"] as string | undefined;
+  const isProduction = req.headers["x-doku-env"] === "production" || process.env.DOKU_ENV === "production";
+
+  const activeClientId = headerClientId || process.env.DOKU_CLIENT_ID;
+  const activeSecretKey = headerSecretKey || process.env.DOKU_SECRET_KEY;
+
+  if (activeClientId && activeSecretKey) {
+    try {
+      const baseUrl = isProduction ? "https://api.doku.com" : "https://api-sandbox.doku.com";
+      const requestTarget = `/orders/v1/status/${encodeURIComponent(invoiceNumber)}`;
+      const requestId = `REQ-STAT-${Date.now()}`;
+      const requestTimestamp = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+
+      const signature = generateDokuGetSignature({
+        clientId: activeClientId,
+        requestId,
+        requestTimestamp,
+        requestTarget,
+        secretKey: activeSecretKey
+      });
+
+      const dokuResp = await fetch(`${baseUrl}${requestTarget}`, {
+        method: "GET",
+        headers: {
+          "Client-Id": activeClientId,
+          "Request-Id": requestId,
+          "Request-Timestamp": requestTimestamp,
+          "Signature": signature
+        }
+      });
+
+      if (dokuResp.ok) {
+        const dokuData = await dokuResp.json();
+        
+        // Parse official DOKU check status response
+        // Format: { order: { invoice_number, amount, status }, transaction: { status, date }, channel: { id }, acquirer: { name } }
+        const trxStatus = dokuData.transaction?.status || dokuData.order?.status;
+        const channelId = dokuData.channel?.id || dokuData.service?.id || "DOKU_CHECKOUT";
+        const acquirerName = dokuData.acquirer?.name || "";
+        const paidDate = dokuData.transaction?.date || new Date().toISOString();
+        const amount = dokuData.order?.amount;
+
+        const isSuccess = trxStatus === "SUCCESS" || trxStatus === "PAID" || trxStatus === "SETTLED";
+        const isExpired = trxStatus === "ORDER_EXPIRED" || trxStatus === "EXPIRED" || trxStatus === "FAILED";
+
+        if (isSuccess) {
+          const record = {
+            invoiceNumber,
+            status: "SUCCESS",
+            amount: Number(amount) || 0,
+            channel: acquirerName ? `${channelId} (${acquirerName})` : channelId,
+            paidAt: paidDate,
+            raw: dokuData
+          };
+
+          dokuPaidInvoices.set(invoiceNumber, record);
+          dokuPaidInvoices.set(targetNorm, record);
+
+          return res.json({
+            success: true,
+            paid: true,
+            status: "SUCCESS",
+            channel: record.channel,
+            paidAt: paidDate,
+            amount: record.amount,
+            message: "Pembayaran telah berhasil diverifikasi oleh DOKU API",
+            doku: dokuData
+          });
+        } else if (isExpired) {
+          return res.json({
+            success: true,
+            paid: false,
+            status: "EXPIRED",
+            message: "Waktu pembayaran pesanan telah habis (ORDER_EXPIRED)",
+            doku: dokuData
+          });
+        } else {
+          return res.json({
+            success: true,
+            paid: false,
+            status: trxStatus || "PENDING",
+            message: "Menunggu pembayaran diselesaikan oleh pelanggan",
+            doku: dokuData
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("DOKU Status API check failed:", err);
+    }
   }
 
   return res.json({
     success: true,
     paid: false,
-    status: cached ? cached.status : "pending",
+    status: cached ? cached.status : "PENDING",
     message: "Pembayaran belum terverifikasi atau masih dalam proses"
   });
 });
@@ -267,7 +416,8 @@ router.post("/payment/doku/simulate-success", (req, res) => {
     return res.status(400).json({ success: false, message: "invoiceNumber is required" });
   }
 
-  const cleanBase = String(invoiceNumber).replace(/[^a-zA-Z0-9_-]/g, "");
+  const cleanBase = String(invoiceNumber).trim();
+  const normKey = normalizeInvoiceKey(cleanBase);
   const entry = {
     invoiceNumber: cleanBase,
     status: "SUCCESS",
@@ -277,7 +427,7 @@ router.post("/payment/doku/simulate-success", (req, res) => {
   };
 
   dokuPaidInvoices.set(cleanBase, entry);
-  dokuPaidInvoices.set(invoiceNumber, entry);
+  dokuPaidInvoices.set(normKey, entry);
 
   return res.json({
     success: true,
@@ -306,11 +456,13 @@ router.post("/payment/callback", (req, res) => {
       };
 
       dokuPaidInvoices.set(String(rawInvoice), record);
+      dokuPaidInvoices.set(normalizeInvoiceKey(rawInvoice), record);
 
       const baseParts = String(rawInvoice).split("-");
       if (baseParts.length > 2) {
         const baseInvoice = baseParts.slice(0, -1).join("-");
         dokuPaidInvoices.set(baseInvoice, record);
+        dokuPaidInvoices.set(normalizeInvoiceKey(baseInvoice), record);
       }
     }
 

@@ -219,6 +219,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({
       isSafeLootOnly: false
     };
 
+    // Immediately notify App and save to Firestore & LocalStorage
+    try {
+      localStorage.setItem('breakoutops_active_order', JSON.stringify(newOrder));
+      localStorage.setItem('breakoutops_pending_invoice', newOrder.invoiceNumber);
+    } catch {}
+
+    if (onOrderCreated) {
+      onOrderCreated(newOrder);
+    } else if (onOrderSubmitted) {
+      onOrderSubmitted(newOrder);
+    }
+
     setPaymentOrder(newOrder);
   };
 

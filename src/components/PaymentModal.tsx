@@ -76,11 +76,35 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [showManualUpload, setShowManualUpload] = useState<boolean>(false);
 
   const isCompletedRef = useRef<boolean>(order.paymentStatus === 'paid');
+  const dokuPopupRef = useRef<Window | null>(null);
+
+  // Keep paidOrderState and viewState in sync if order prop changes (e.g. after return redirect)
+  useEffect(() => {
+    setPaidOrderState(order);
+    if (order.paymentStatus === 'paid') {
+      setViewState('success_invoice');
+      isCompletedRef.current = true;
+      if (dokuPopupRef.current && !dokuPopupRef.current.closed) {
+        try { dokuPopupRef.current.close(); } catch {}
+      }
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+      } catch {}
+    }
+  }, [order.id, order.paymentStatus, order.invoiceNumber]);
 
   // Trigger celebration confetti & update order state to PAID
   const triggerPaymentSuccess = (paidDetails?: { channel?: string; paidAt?: string }) => {
     if (isCompletedRef.current) return;
     isCompletedRef.current = true;
+
+    if (dokuPopupRef.current && !dokuPopupRef.current.closed) {
+      try { dokuPopupRef.current.close(); } catch {}
+    }
 
     try {
       confetti({
@@ -159,21 +183,58 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     };
   }, [order.invoiceNumber, viewState, order.paymentStatus]);
 
-  // Listen to postMessage from DOKU Jokul iframe / popup
+  // Listen to postMessage, BroadcastChannel & storage events from DOKU popup
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
         if (!event.data) return;
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        if (data.status === 'SUCCESS' || data.paymentStatus === 'SUCCESS' || data.event === 'PAYMENT_SUCCESS') {
-          triggerPaymentSuccess({ channel: data.channel || 'DOKU_CHECKOUT' });
+        if (
+          data.status === 'SUCCESS' ||
+          data.paymentStatus === 'SUCCESS' ||
+          data.event === 'PAYMENT_SUCCESS' ||
+          data.type === 'DOKU_PAYMENT_SUCCESS'
+        ) {
+          triggerPaymentSuccess({ channel: data.channel || 'DOKU Checkout' });
         }
       } catch {}
     };
 
     window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('breakoutops_doku_channel');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'DOKU_PAYMENT_SUCCESS') {
+          triggerPaymentSuccess({ channel: event.data.channel || 'DOKU Checkout' });
+        }
+      };
+    } catch {}
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'breakoutops_doku_completed' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          const rawOrderInv = order.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          const targetInv = String(parsed.invoiceNumber || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          if (rawOrderInv === targetInv || (targetInv.length >= 6 && rawOrderInv.includes(targetInv))) {
+            triggerPaymentSuccess();
+          }
+        } catch {}
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+      window.removeEventListener('storage', handleStorage);
+      if (channel) {
+        try { channel.close(); } catch {}
+      }
+    };
+  }, [order.invoiceNumber]);
 
   // Countdown timer
   useEffect(() => {
@@ -241,9 +302,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         if (resData.paymentUrl) {
           const paymentUrl = resData.paymentUrl;
           setDokuPaymentUrl(paymentUrl);
-          // Open in new tab directly
-          window.open(paymentUrl, '_blank', 'noopener,noreferrer');
-          setCheckoutFeedback('⚡ Tab pembayaran DOKU telah dibuka. Selesaikan transaksi di DOKU, halaman invoice ini akan otomatis berubah menjadi LUNAS.');
+          // Open popup window with opener reference
+          const popup = window.open(
+            paymentUrl,
+            'doku_checkout_window',
+            'width=650,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes'
+          );
+          if (popup) {
+            dokuPopupRef.current = popup;
+          }
+          setCheckoutFeedback('⚡ Jendela pembayaran DOKU telah dibuka. Setelah pembayaran selesai, jendela tersebut akan otomatis tertutup dan invoice ini menjadi LUNAS.');
         } else {
           setCheckoutFeedback(resData.message || '⚡ Invoice menunggu pembayaran. Selesaikan pembayaran atau konfirmasi di bawah.');
         }

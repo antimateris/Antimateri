@@ -269,60 +269,137 @@ export default function App() {
       const rawInvoice = urlParams.get('invoice_number') || urlParams.get('invoice') || urlParams.get('order_id') || urlParams.get('orderNumber');
       const status = urlParams.get('status') || urlParams.get('payment_status') || urlParams.get('status_type') || urlParams.get('result');
 
+      const fromDoku = urlParams.get('from_doku') || (window.opener ? '1' : null);
+
       if (rawInvoice) {
-        // Strip any test suffix if present (e.g. INV-260830-1001-A9F2 -> INV-260830-1001)
-        const parts = rawInvoice.split('-');
-        const invoiceNumber = parts.length > 2 && parts[parts.length - 1].length === 4 
-          ? parts.slice(0, -1).join('-') 
-          : rawInvoice;
+        const cleanTarget = rawInvoice.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        console.log(`[DOKU Return] Detected return from DOKU for invoice: ${rawInvoice}, status: ${status}`);
 
-        console.log(`[DOKU Return] Detected return from DOKU for invoice: ${invoiceNumber} (raw: ${rawInvoice}), status: ${status}`);
-        
-        // 1. Immediately dismiss any unpaid modal
-        setPaymentOrder(null);
+        const isNotFailed = !status || (status.toLowerCase() !== 'failed' && status.toLowerCase() !== 'cancel');
 
-        // 2. Auto navigate to tracking tab
-        setTrackingInitialQuery(invoiceNumber);
-        setActiveTab('track');
-
-        // 3. Mark invoice as paid in backend & orders state
-        const isNotFailed = !status || status.toLowerCase() !== 'failed' && status.toLowerCase() !== 'cancel';
+        // 1. Cross-tab & opener broadcast
         if (isNotFailed) {
-          // Inform backend
+          try {
+            const channel = new BroadcastChannel('breakoutops_doku_channel');
+            channel.postMessage({
+              type: 'DOKU_PAYMENT_SUCCESS',
+              invoiceNumber: rawInvoice,
+              channel: 'DOKU Checkout'
+            });
+            setTimeout(() => channel.close(), 1000);
+          } catch {}
+
+          try {
+            localStorage.setItem(
+              'breakoutops_doku_completed',
+              JSON.stringify({ invoiceNumber: rawInvoice, time: Date.now() })
+            );
+          } catch {}
+
+          if (window.opener) {
+            try {
+              window.opener.postMessage(
+                {
+                  type: 'DOKU_PAYMENT_SUCCESS',
+                  invoiceNumber: rawInvoice,
+                  channel: 'DOKU Checkout'
+                },
+                '*'
+              );
+              window.opener.focus();
+            } catch {}
+          }
+
+          // If this window is a child popup / tab opened from the main app, close it automatically!
+          if (fromDoku || window.opener || window.name === 'doku_checkout_window') {
+            setTimeout(() => {
+              try {
+                window.close();
+              } catch {}
+            }, 600);
+          }
+        }
+
+        // Retrieve known orders from local storage as immediate cache
+        let cachedActiveOrder: Order | null = null;
+        let cachedOrdersList: Order[] = [];
+        try {
+          const activeStr = localStorage.getItem('breakoutops_active_order');
+          if (activeStr) cachedActiveOrder = JSON.parse(activeStr);
+          const listStr = localStorage.getItem('breakoutops_orders');
+          if (listStr) cachedOrdersList = JSON.parse(listStr);
+        } catch {}
+
+        // Mark invoice as paid in backend
+        if (isNotFailed) {
           fetch('/api/payment/doku/simulate-success', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ invoiceNumber, amount: 0 })
+            body: JSON.stringify({ invoiceNumber: rawInvoice, amount: 0 })
           }).catch(() => {});
-
-          // Update local state & Firestore
-          setOrders((prevOrders) =>
-            prevOrders.map((ord) => {
-              if ((ord.invoiceNumber === invoiceNumber || ord.invoiceNumber === rawInvoice) && ord.paymentStatus !== 'paid') {
-                const updated: Order = {
-                  ...ord,
-                  paymentStatus: 'paid',
-                  orderStatus: ord.orderStatus === 'verifying' ? 'queued' : (ord.orderStatus === 'pending' ? 'queued' : ord.orderStatus),
-                  paidAt: new Date().toISOString(),
-                  paymentProofDate: new Date().toISOString(),
-                  progressHistory: [
-                    ...(ord.progressHistory || []),
-                    {
-                      id: `prf_doku_${Date.now()}`,
-                      timestamp: new Date().toISOString(),
-                      note: `Pembayaran DOKU Berhasil Dikonfirmasi. Pesanan masuk antrean sistem.`,
-                      workerName: 'DOKU Payment Gateway',
-                      progressPercent: 5
-                    }
-                  ]
-                };
-                saveOrderToFirestore(updated);
-                return updated;
-              }
-              return ord;
-            })
-          );
         }
+
+        // Helper to check if order matches invoice
+        const isMatch = (ord: Order) => {
+          if (!ord || !ord.invoiceNumber) return false;
+          const ordClean = ord.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          return ord.invoiceNumber === rawInvoice || ordClean === cleanTarget || (cleanTarget.length >= 6 && ordClean.includes(cleanTarget));
+        };
+
+        setOrders((prevOrders) => {
+          let updatedList = [...prevOrders];
+          let found = updatedList.find(isMatch);
+
+          if (!found && cachedActiveOrder && isMatch(cachedActiveOrder)) {
+            found = cachedActiveOrder;
+            updatedList.unshift(cachedActiveOrder);
+          }
+
+          if (!found && cachedOrdersList.length > 0) {
+            const matchInCache = cachedOrdersList.find(isMatch);
+            if (matchInCache) {
+              found = matchInCache;
+              updatedList.unshift(matchInCache);
+            }
+          }
+
+          if (found) {
+            const updatedOrder: Order = {
+              ...found,
+              paymentStatus: isNotFailed ? 'paid' : found.paymentStatus,
+              orderStatus: isNotFailed ? 'queued' : found.orderStatus,
+              paidAt: isNotFailed ? (found.paidAt || new Date().toISOString()) : found.paidAt,
+              paymentProofDate: isNotFailed ? (found.paymentProofDate || new Date().toISOString()) : found.paymentProofDate,
+              paymentMethod: 'DOKU Checkout (Verified)',
+              progressHistory: [
+                ...(found.progressHistory || []),
+                ...(isNotFailed && found.paymentStatus !== 'paid' ? [{
+                  id: `prf_doku_${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  note: `Pembayaran DOKU Berhasil Terverifikasi. Pesanan masuk antrean pengerjaan.`,
+                  workerName: 'DOKU Payment Gateway',
+                  progressPercent: 5
+                }] : [])
+              ]
+            };
+
+            saveOrderToFirestore(updatedOrder);
+            try {
+              localStorage.setItem('breakoutops_active_order', JSON.stringify(updatedOrder));
+            } catch {}
+
+            // Open the Success Paid Invoice Modal so user sees their receipt
+            if (isNotFailed) {
+              setPaymentOrder(updatedOrder);
+            }
+            setTrackingInitialQuery(updatedOrder.invoiceNumber);
+
+            return updatedList.map((o) => (isMatch(o) ? updatedOrder : o));
+          }
+
+          setTrackingInitialQuery(rawInvoice);
+          return updatedList;
+        });
 
         // Clean up URL search parameters without reloading page
         window.history.replaceState({}, document.title, window.location.pathname);
