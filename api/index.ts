@@ -1,12 +1,7 @@
-import "dotenv/config";
 import express from "express";
-import path from "path";
 import crypto from "crypto";
-import { createServer as createViteServer } from "vite";
 
 const app = express();
-const PORT = 3000;
-
 app.use(express.json());
 
 // DOKU Signature Helper
@@ -25,15 +20,9 @@ function generateDokuSignature({
   bodyJsonString: string;
   secretKey: string;
 }) {
-  // 1. Digest calculation: Base64(SHA256(Body))
   const digest = crypto.createHash("sha256").update(bodyJsonString, "utf8").digest("base64");
-
-  // 2. Component signature string according to DOKU Jokul specification
   const componentString = `Client-Id:${clientId}\nRequest-Id:${requestId}\nRequest-Timestamp:${requestTimestamp}\nRequest-Target:${requestTarget}\nDigest:${digest}`;
-
-  // 3. HMAC-SHA256 with Secret Key
   const hmac = crypto.createHmac("sha256", secretKey).update(componentString, "utf8").digest("base64");
-
   return `HMACSHA256=${hmac}`;
 }
 
@@ -46,6 +35,11 @@ const dokuPaidInvoices = new Map<string, {
   paidAt: string;
   raw?: any;
 }>();
+
+// API Health Check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
 
 // API: Create DOKU Checkout Payment URL
 app.post("/api/payment/doku/checkout", async (req, res) => {
@@ -60,12 +54,11 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       productDetails,
       clientId,
       secretKey
-    } = req.body;
+    } = req.body || {};
 
     const activeClientId = clientId || process.env.DOKU_CLIENT_ID;
     const activeSecretKey = secretKey || process.env.DOKU_SECRET_KEY;
 
-    // Check if valid credentials exist or if placeholder dummy keys are used
     const hasValidCredentials = Boolean(
       activeClientId && 
       activeSecretKey && 
@@ -80,10 +73,9 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
 
     const requestTarget = "/checkout/v1/payment";
     const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const requestTimestamp = new Date().toISOString().slice(0, 19) + "Z"; // UTC ISO8601 YYYY-MM-DDTHH:mm:ssZ
+    const requestTimestamp = new Date().toISOString().slice(0, 19) + "Z";
 
-    // Extract origin cleanly
-    let originUrl = "https://ais-dev-qomstwgdhmg6zte5aukc37-744730367656.asia-southeast1.run.app";
+    let originUrl = "https://antimateri-p4v1-opuefp1cq-breakoutops.vercel.app";
     if (req.headers.origin && typeof req.headers.origin === "string") {
       originUrl = req.headers.origin.trim();
     } else if (req.headers.referer && typeof req.headers.referer === "string") {
@@ -93,7 +85,6 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       } catch {}
     }
 
-    // Clean base invoice: alphanumeric only, max 20 chars
     const cleanBaseInvoice = String(orderNumber || "INV")
       .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 20);
@@ -105,7 +96,6 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
 
     const totalAmount = Math.max(1000, Math.round(Number(amount) || 10000));
 
-    // Sanitize customer details (ASCII characters only, valid phone digits)
     const cleanCustomerName = String(customerName || "Pelanggan BreakoutOps")
       .replace(/[^\w\s.-]/gi, "")
       .trim()
@@ -120,7 +110,6 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       cleanEmail = "customer@breakoutops.com";
     }
 
-    // Line items must sum exactly to totalAmount
     const lineItemName = String(productDetails?.[0]?.name || "Jasa Joki Arena Breakout")
       .replace(/[^\w\s.-]/gi, "")
       .trim()
@@ -142,7 +131,7 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
         ]
       },
       payment: {
-        payment_due_date: 60 // 60 minutes
+        payment_due_date: 60
       },
       customer: {
         name: cleanCustomerName,
@@ -151,7 +140,6 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       }
     };
 
-    // If valid real DOKU credentials are provided, attempt real DOKU API call
     if (hasValidCredentials && activeClientId && activeSecretKey) {
       try {
         const bodyJsonString = JSON.stringify(payload);
@@ -189,16 +177,11 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
           });
         }
 
-        console.warn("DOKU API non-OK response:", dokuData);
-        // If it was rejected by DOKU (e.g. invalid merchant or sandbox credential mismatch),
-        // provide helpful error message or sandbox fallback
         const errMsg = Array.isArray(dokuData.message)
           ? dokuData.message.join(", ")
           : (dokuData.error?.message || (typeof dokuData.message === "string" ? dokuData.message : JSON.stringify(dokuData.error || dokuData)));
 
-        // If in sandbox mode, fallback gracefully to interactive simulator
         if (!isProduction) {
-          console.log("[DOKU Sandbox Mode] Using interactive sandbox checkout fallback for testing.");
           return res.json({
             success: true,
             dokuInvoiceNumber,
@@ -221,7 +204,6 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       }
     }
 
-    // Sandbox / Test Fallback mode when credentials are not configured or in testing mode
     return res.json({
       success: true,
       dokuInvoiceNumber,
@@ -244,10 +226,8 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
 app.get("/api/payment/doku/status/:invoiceNumber", async (req, res) => {
   const { invoiceNumber } = req.params;
   
-  // 1. Direct match
   let cached = dokuPaidInvoices.get(invoiceNumber);
 
-  // 2. Prefix / Base Invoice match (e.g. if invoiceNumber is INV-123 and cached is INV-123-ABCD)
   if (!cached || cached.status !== "SUCCESS") {
     for (const [key, val] of dokuPaidInvoices.entries()) {
       if (val.status === "SUCCESS") {
@@ -278,9 +258,9 @@ app.get("/api/payment/doku/status/:invoiceNumber", async (req, res) => {
   });
 });
 
-// API: Simulate success (useful for Sandbox / Testing)
+// API: Simulate success
 app.post("/api/payment/doku/simulate-success", (req, res) => {
-  const { invoiceNumber, amount } = req.body;
+  const { invoiceNumber, amount } = req.body || {};
   if (!invoiceNumber) {
     return res.status(400).json({ success: false, message: "invoiceNumber is required" });
   }
@@ -306,10 +286,7 @@ app.post("/api/payment/doku/simulate-success", (req, res) => {
 // Webhook / Notification Handler from DOKU
 app.post("/api/payment/callback", (req, res) => {
   try {
-    console.log("DOKU Webhook Notification received:", JSON.stringify(req.body, null, 2));
-
     const body = req.body || {};
-    // Extract invoice number and status across various DOKU notification schemas
     const rawInvoice = body.order?.invoice_number || body.invoice_number || body.orderId || body.order_id;
     const trxStatus = body.transaction?.status || body.transactionStatus || body.status || "SUCCESS";
     const channel = body.channel?.id || body.payment_channel || body.paymentMethod || "DOKU_CHECKOUT";
@@ -326,59 +303,22 @@ app.post("/api/payment/callback", (req, res) => {
         raw: body
       };
 
-      // Store raw invoice
       dokuPaidInvoices.set(String(rawInvoice), record);
 
-      // Also store stripped base invoice if suffix was appended
       const baseParts = String(rawInvoice).split("-");
       if (baseParts.length > 2) {
         const baseInvoice = baseParts.slice(0, -1).join("-");
         dokuPaidInvoices.set(baseInvoice, record);
       }
-
-      console.log(`[DOKU Webhook] Invoice ${rawInvoice} status updated to: ${trxStatus}`);
     }
 
-    // Acknowledge DOKU Webhook with standard 200 OK response
     return res.status(200).json({
       status: "SUCCESS",
       message: "Webhook processed successfully"
     });
   } catch (error: any) {
-    console.error("DOKU Webhook processing error:", error);
     return res.status(200).json({ status: "SUCCESS", note: "Error logged" });
   }
 });
 
-// API Health Check
-app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Vite middleware for development & production static serving
-async function startServer() {
-  // Pengecekan Environment Variable
-  if (!process.env.DOKU_CLIENT_ID || !process.env.DOKU_SECRET_KEY) {
-    console.warn("[WARNING] DOKU_CLIENT_ID dan DOKU_SECRET_KEY belum diisi di environment variable. Checkout resmi DOKU akan meminta env var saat dipanggil.");
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
-}
-
-startServer();
+export default app;
