@@ -22,7 +22,7 @@ export type PaymentMethod =
 
 export type PaymentStatus = 'pending' | 'verifying' | 'paid' | 'expired' | 'failed';
 
-export type UserRole = 'superadmin' | 'admin' | 'user';
+export type UserRole = 'owner' | 'admin' | 'worker' | 'superadmin' | 'user';
 
 export type PayoutStatus = 'pending' | 'processing' | 'transferred' | 'rejected';
 
@@ -189,6 +189,23 @@ export interface SystemSettings {
   workerGroupWhatsApp?: string; // e.g. "6281299887766" or group bot WA
   csWorkingHours: string;
   autoVerifyPayment: boolean;
+  
+  // Payment Gateway Settings
+  paymentGatewayProvider?: 'doku' | 'midtrans' | 'tripay' | 'manual';
+  paymentGatewayMode?: 'sandbox' | 'production';
+  dokuClientId?: string;
+  dokuApiKey?: string;
+  dokuClientSecret?: string;
+  dokuPrivateKey?: string;
+  dokuPublicKey?: string;
+  dokuPartnerId?: string;
+  midtransClientKey?: string;
+  midtransServerKey?: string;
+  tripayMerchantCode?: string;
+  tripayApiKey?: string;
+  tripayPrivateKey?: string;
+  paymentWebhookSecret?: string;
+  
   maintenanceMode: boolean;
   maintenanceTitle?: string;
   maintenanceMessage?: string;

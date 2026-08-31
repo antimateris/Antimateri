@@ -10,6 +10,7 @@ import { AdminLoginModal } from './components/Admin/AdminLoginModal';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { Footer } from './components/Footer';
 import { MaintenanceScreen } from './components/MaintenanceScreen';
+import { MaintenanceAdminBanner } from './components/MaintenanceAdminBanner';
 
 // Customer Gamification Components
 import { CustomerAuthModal } from './components/Customer/CustomerAuthModal';
@@ -708,15 +709,20 @@ export default function App() {
         /* Global Maintenance Mode Splash Screen for all Public Users */
         <MaintenanceScreen
           settings={settings}
+          orders={orders}
           onOpenAdminLogin={() => setIsAdminLoginOpen(true)}
-          onTrackOrder={(query) => {
-            setTrackingInitialQuery(query);
-            setActiveTab('track');
-          }}
         />
       ) : (
         /* Customer-Facing Experience */
         <>
+          {/* Superadmin Floating Mini-Banner when Maintenance Mode is ON */}
+          {settings.maintenanceMode && currentAdminUser && (
+            <MaintenanceAdminBanner
+              settings={settings}
+              onOpenAdminPortal={() => setActiveTab('admin')}
+            />
+          )}
+
           {/* Main Navigation Bar */}
           <Navbar
             activeTab={activeTab}
@@ -796,6 +802,7 @@ export default function App() {
                 <LeaderboardPage
                   customers={customers}
                   orders={orders}
+                  admins={admins}
                   onOpenOrder={() => {
                     setActiveTab('order');
                     setTimeout(() => {

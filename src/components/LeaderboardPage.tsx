@@ -17,7 +17,7 @@ import {
   Gift,
   ArrowRight
 } from 'lucide-react';
-import { CustomerUser, Order } from '../types';
+import { CustomerUser, Order, AdminUser } from '../types';
 import { TIER_CONFIGS } from '../data/initialData';
 import { formatRupiah } from '../utils/helpers';
 
@@ -28,6 +28,7 @@ interface LeaderboardPageProps {
   onOpenAuth: () => void;
   onOpenRewards: () => void;
   currentCustomer: CustomerUser | null;
+  admins?: AdminUser[];
 }
 
 export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
@@ -37,6 +38,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
   onOpenAuth,
   onOpenRewards,
   currentCustomer,
+  admins = [],
 }) => {
   const [activeBoard, setActiveBoard] = useState<'top_spender' | 'top_grinder' | 'top_worker'>('top_spender');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -48,25 +50,49 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
   const topGrinders = [...customers].sort((a, b) => b.totalKoenFarmedMillion - a.totalKoenFarmedMillion);
 
   // 3. Compute Top Workers from actual completed orders
-  const workerStatsMap: Record<string, { name: string; completedOrders: number; totalKoenMillion: number; rating: number }> = {
-    'Pro Joki Alpha': { name: 'Pro Joki Alpha (Raid Master)', completedOrders: 42, totalKoenMillion: 185, rating: 5.0 },
-    'Admin Shift Pagi': { name: 'Admin Shift Pagi (Speed Extractor)', completedOrders: 28, totalKoenMillion: 92, rating: 4.9 },
-    'Chief Operasional': { name: 'Chief Operasional (Superadmin)', completedOrders: 15, totalKoenMillion: 60, rating: 5.0 },
+  const workerStatsMap: Record<string, { name: string; avatar?: string; completedOrders: number; totalKoenMillion: number; rating: number }> = {
+    'Pro Joki Alpha': { 
+      name: 'Pro Joki Alpha (Raid Master)', 
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+      completedOrders: 42, 
+      totalKoenMillion: 185, 
+      rating: 5.0 
+    },
+    'Admin Operasional': { 
+      name: 'Admin Operasional (Rafi)', 
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+      completedOrders: 28, 
+      totalKoenMillion: 92, 
+      rating: 4.9 
+    },
+    'Chief Operasional': { 
+      name: 'Chief Operasional (OWNER & CEO)', 
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      completedOrders: 15, 
+      totalKoenMillion: 60, 
+      rating: 5.0 
+    },
   };
 
-  // Enhance worker stats from orders
+  // Enhance worker stats from orders and admin avatars
   orders.forEach((o) => {
     if (o.orderStatus === 'completed' && o.assignedWorker) {
       const workerKey = o.assignedWorker;
+      const matchedAdmin = admins.find((a) => a.name.toLowerCase().includes(workerKey.toLowerCase()) || workerKey.toLowerCase().includes(a.name.toLowerCase()));
+
       if (!workerStatsMap[workerKey]) {
         workerStatsMap[workerKey] = {
           name: workerKey,
+          avatar: matchedAdmin?.avatar,
           completedOrders: 0,
           totalKoenMillion: 0,
-          rating: 4.9,
+          rating: matchedAdmin?.ratingScore || 4.9,
         };
       }
       workerStatsMap[workerKey].completedOrders += 1;
+      if (matchedAdmin?.avatar && !workerStatsMap[workerKey].avatar) {
+        workerStatsMap[workerKey].avatar = matchedAdmin.avatar;
+      }
       if (o.koenAmountMillion) {
         workerStatsMap[workerKey].totalKoenMillion += o.koenAmountMillion;
       }
@@ -254,8 +280,21 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                 
                 {/* 2nd Place */}
                 <div className="order-2 md:order-1 p-5 rounded-3xl bg-zinc-900/90 border border-zinc-700/80 flex flex-col items-center text-center space-y-3 relative overflow-hidden shadow-xl">
-                  <div className="w-14 h-14 rounded-2xl bg-zinc-300 text-black flex items-center justify-center font-tactical font-black text-xl shadow-lg">
-                    2
+                  <div className="relative">
+                    {topSpenders[1].avatar ? (
+                      <img
+                        src={topSpenders[1].avatar}
+                        alt={topSpenders[1].name}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-zinc-400 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-zinc-300 text-black flex items-center justify-center font-tactical font-black text-2xl shadow-lg">
+                        {topSpenders[1].name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-zinc-300 text-black font-black text-xs flex items-center justify-center shadow">
+                      2
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
@@ -279,8 +318,21 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                   <div className="absolute top-2 bg-gradient-to-r from-amber-500 to-orange-500 text-black text-[10px] font-black uppercase px-3 py-0.5 rounded-full font-tactical">
                     CHAMPION SULTAN
                   </div>
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 text-black flex items-center justify-center font-tactical font-black text-2xl shadow-xl shadow-amber-500/40 mt-3">
-                    <Crown className="w-9 h-9 fill-black text-black" />
+                  <div className="relative mt-2">
+                    {topSpenders[0].avatar ? (
+                      <img
+                        src={topSpenders[0].avatar}
+                        alt={topSpenders[0].name}
+                        className="w-20 h-20 rounded-3xl object-cover border-2 border-amber-400 ring-4 ring-amber-500/30 shadow-xl shadow-amber-500/30"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-400 to-yellow-600 text-black flex items-center justify-center font-tactical font-black text-3xl shadow-xl shadow-amber-500/40">
+                        {topSpenders[0].name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="absolute -top-2.5 -right-2.5 w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-black flex items-center justify-center shadow-lg">
+                      <Crown className="w-4 h-4 fill-black text-black" />
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded border border-amber-500/40">
@@ -301,8 +353,21 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
 
                 {/* 3rd Place */}
                 <div className="order-3 md:order-3 p-5 rounded-3xl bg-zinc-900/90 border border-amber-800/60 flex flex-col items-center text-center space-y-3 relative overflow-hidden shadow-xl">
-                  <div className="w-14 h-14 rounded-2xl bg-amber-800 text-white flex items-center justify-center font-tactical font-black text-xl shadow-lg">
-                    3
+                  <div className="relative">
+                    {topSpenders[2].avatar ? (
+                      <img
+                        src={topSpenders[2].avatar}
+                        alt={topSpenders[2].name}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-700 shadow-md"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-amber-800 text-white flex items-center justify-center font-tactical font-black text-2xl shadow-lg">
+                        {topSpenders[2].name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="absolute -bottom-2 -right-2 w-6 h-6 rounded-full bg-amber-700 text-white font-black text-xs flex items-center justify-center shadow">
+                      3
+                    </div>
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-900/30 px-2 py-0.5 rounded">
@@ -374,9 +439,17 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex items-center space-x-2.5">
-                              <div className="w-8 h-8 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-amber-400 text-xs">
-                                {cust.name.charAt(0)}
-                              </div>
+                              {cust.avatar ? (
+                                <img
+                                  src={cust.avatar}
+                                  alt={cust.name}
+                                  className="w-9 h-9 rounded-xl object-cover border border-amber-500/40 shadow-sm shrink-0"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-amber-400 text-xs shrink-0">
+                                  {cust.name.charAt(0)}
+                                </div>
+                              )}
                               <div>
                                 <span className="font-bold text-white block">
                                   {getDisplayName(cust)}
@@ -469,9 +542,17 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
                           </td>
                           <td className="py-3.5 px-4">
                             <div className="flex items-center space-x-2.5">
-                              <div className="w-8 h-8 rounded-xl bg-zinc-800 flex items-center justify-center font-bold text-amber-400 text-xs">
-                                {cust.name.charAt(0)}
-                              </div>
+                              {cust.avatar ? (
+                                <img
+                                  src={cust.avatar}
+                                  alt={cust.name}
+                                  className="w-9 h-9 rounded-xl object-cover border border-emerald-500/40 shadow-sm shrink-0"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center font-bold text-amber-400 text-xs shrink-0">
+                                  {cust.name.charAt(0)}
+                                </div>
+                              )}
                               <div>
                                 <span className="font-bold text-white block">
                                   {getDisplayName(cust)}
