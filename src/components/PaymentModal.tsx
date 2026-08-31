@@ -196,7 +196,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopiedInvoice(false), 2000);
   };
 
-  // Launch DOKU Jokul Checkout (Embedded in modal without opening new tab)
+  // Launch DOKU Jokul Checkout (Opens in new tab directly as requested)
   const handleLaunchJokulCheckout = async () => {
     setIsCreatingDokuCheckout(true);
     setCheckoutFeedback(null);
@@ -223,34 +223,30 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         })
       });
 
-      const resData = await response.json();
-      if (resData.success) {
+      let resData: any = null;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        resData = await response.json();
+      }
+
+      if (response.ok && resData && resData.success) {
         if (resData.paymentUrl) {
           const paymentUrl = resData.paymentUrl;
           setDokuPaymentUrl(paymentUrl);
-
-          // 1. First priority: load Jokul Checkout official popup directly inside current page
-          if (typeof window.loadJokulCheckout === 'function') {
-            try {
-              window.loadJokulCheckout(paymentUrl);
-              setCheckoutFeedback('⚡ Sesi pembayaran DOKU aktif. Selesaikan pembayaran di popup atau frame di bawah.');
-              return;
-            } catch (e) {
-              console.warn('loadJokulCheckout popup failed, using in-modal frame:', e);
-            }
-          }
-
-          setCheckoutFeedback('⚡ Sesi pembayaran DOKU siap. Selesaikan transaksi di frame di bawah.');
+          // Open in new tab directly
+          window.open(paymentUrl, '_blank', 'noopener,noreferrer');
+          setCheckoutFeedback('⚡ Tab pembayaran DOKU telah dibuka di halaman baru. Setelah menyelesaikan pembayaran, sistem ini otomatis mendeteksi status Lunas.');
         } else {
           // Sandbox simulation or fallback mode
-          setCheckoutFeedback('⚡ Mode Sandbox DOKU Aktif: Anda dapat memindai QRIS simulasi atau langsung klik "Konfirmasi Lunas" di bawah.');
+          setCheckoutFeedback(resData.message || '⚡ Sesi pembayaran siap. Anda dapat mengklik tombol "Konfirmasi Lunas" setelah pembayaran.');
         }
       } else {
-        setCheckoutFeedback(`⚠️ ${resData.message || 'Gagal membuat sesi pembayaran DOKU.'}`);
+        const errorMsg = resData?.message || 'Server pembayaran DOKU sedang tidak tersedia atau kredensial API belum terpasang.';
+        setCheckoutFeedback(`⚠️ ${errorMsg}`);
       }
     } catch (err: any) {
       console.error('DOKU Checkout error:', err);
-      setCheckoutFeedback('⚠️ Terjadi kendala jaringan saat menghubungkan ke DOKU. Anda dapat menggunakan tombol konfirmasi simulasi atau upload bukti manual.');
+      setCheckoutFeedback('⚠️ Terjadi kendala saat menghubungkan ke gateway DOKU. Pastikan kredensial DOKU telah diatur di Admin Portal atau gunakan opsi konfirmasi/bukti manual di bawah.');
     } finally {
       setIsCreatingDokuCheckout(false);
     }
@@ -261,19 +257,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setIsAutoChecking(true);
     try {
       const res = await fetch(`/api/payment/doku/status/${order.invoiceNumber}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.paid) {
-          triggerPaymentSuccess({
-            channel: data.channel,
-            paidAt: data.paidAt
-          });
-          return;
-        }
+      let data: any = null;
+      if (res.headers.get('content-type')?.includes('application/json')) {
+        data = await res.json();
+      }
+      if (res.ok && data && data.success && data.paid) {
+        triggerPaymentSuccess({
+          channel: data.channel,
+          paidAt: data.paidAt
+        });
+        return;
       }
       setCheckoutFeedback('ℹ️ Pembayaran belum terdeteksi dari DOKU. Pastikan Anda telah menyelesaikan transaksi di aplikasi e-wallet/bank.');
     } catch (e) {
-      setCheckoutFeedback('⚠️ Gagal memeriksa status pembayaran.');
+      setCheckoutFeedback('⚠️ Gagal memeriksa status pembayaran dari server.');
     } finally {
       setIsAutoChecking(false);
     }
@@ -705,34 +702,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </button>
             </div>
 
-            {/* Embedded In-Page DOKU Payment Frame */}
-            {dokuPaymentUrl && (
-              <div className="space-y-2 pt-1 animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex items-center justify-between text-xs text-zinc-400 pb-1">
-                  <span className="font-bold text-zinc-200 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Portal Pembayaran DOKU (Langsung di Web)
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setDokuPaymentUrl(null)}
-                    className="text-zinc-500 hover:text-zinc-300 text-[11px] underline cursor-pointer"
-                  >
-                    Tutup Frame
-                  </button>
-                </div>
-                <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-blue-500/40 bg-zinc-900 shadow-2xl relative">
-                  <iframe
-                    src={dokuPaymentUrl}
-                    title="DOKU Checkout Gateway"
-                    className="w-full h-full border-0"
-                    allow="payment"
-                  />
-                </div>
-              </div>
-            )}
-
-            {checkoutFeedback && !dokuPaymentUrl && (
+            {checkoutFeedback && (
               <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs flex items-start space-x-2">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
                 <span className="leading-relaxed">{checkoutFeedback}</span>
