@@ -310,8 +310,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientId: settings?.dokuClientId,
-          secretKey: settings?.dokuClientSecret,
           isProduction: settings?.paymentGatewayMode === 'production',
           orderNumber: order.invoiceNumber,
           amount: order.totalPrice,

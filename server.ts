@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
 import crypto from "crypto";
@@ -7,6 +8,16 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// DOKU Configuration from environment
+const DOKU_CLIENT_ID = process.env.DOKU_CLIENT_ID;
+const DOKU_SECRET_KEY = process.env.DOKU_SECRET_KEY;
+
+if (!DOKU_CLIENT_ID || !DOKU_SECRET_KEY) {
+  console.warn(
+    "[CONFIG WARNING] DOKU_CLIENT_ID atau DOKU_SECRET_KEY belum diatur di environment variable. Pastikan diatur di file .env atau hosting environment agar endpoint checkout DOKU dapat beroperasi."
+  );
+}
 
 // DOKU Signature Helper
 function generateDokuSignature({
@@ -40,8 +51,6 @@ function generateDokuSignature({
 app.post("/api/payment/doku/checkout", async (req, res) => {
   try {
     const {
-      clientId,
-      secretKey,
       isProduction,
       orderNumber,
       amount,
@@ -51,8 +60,16 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       productDetails
     } = req.body;
 
-    const activeClientId = clientId || process.env.DOKU_CLIENT_ID || "BRN-0248-1788087931417";
-    const activeSecretKey = secretKey || process.env.DOKU_SECRET_KEY || "SK-GBHLCjkOQbzarOKoJLeM";
+    const activeClientId = process.env.DOKU_CLIENT_ID;
+    const activeSecretKey = process.env.DOKU_SECRET_KEY;
+
+    if (!activeClientId || !activeSecretKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Konfigurasi DOKU_CLIENT_ID dan DOKU_SECRET_KEY belum diatur di server environment variable."
+      });
+    }
+
     const baseUrl = isProduction
       ? "https://api.doku.com"
       : "https://api-sandbox.doku.com";

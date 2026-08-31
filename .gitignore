@@ -4,5 +4,26 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.development
+.env.test
+.env.production
 !.env.example
+
+# Credentials, Keys & Certificates
+*.pem
+*.key
+*.p8
+*.p12
+*.crt
+*serviceAccountKey*.json
+*firebase-adminsdk*.json
+firebase-credentials.json
+secrets.json
+service-account*.json
+credentials.json
+
