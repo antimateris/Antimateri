@@ -79,13 +79,14 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
       } catch {}
     }
 
-    // Generate unique invoice number per DOKU checkout attempt while preserving base invoice
-    const cleanBaseInvoice = String(orderNumber).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 24);
+    // Generate unique invoice number per DOKU checkout attempt (alphanumeric only, max 30 chars)
+    const cleanBaseInvoice = String(orderNumber).replace(/[^a-zA-Z0-9]/g, "").slice(0, 24);
     const attemptSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const dokuInvoiceNumber = `${cleanBaseInvoice}-${attemptSuffix}`;
+    const dokuInvoiceNumber = `${cleanBaseInvoice}${attemptSuffix}`;
 
-    const callbackUrl = `${originUrl}/?invoice_number=${cleanBaseInvoice}&status=success`;
-    const callbackUrlCancel = `${originUrl}/?invoice_number=${cleanBaseInvoice}&status=cancel`;
+    const callbackUrl = `${originUrl}/doku-return?invoice_number=${cleanBaseInvoice}&status=success`;
+    const callbackUrlCancel = `${originUrl}/doku-return?invoice_number=${cleanBaseInvoice}&status=cancel`;
+    const callbackUrlResult = `${originUrl}/doku-return?invoice_number=${cleanBaseInvoice}&status=result`;
 
     const payload = {
       order: {
@@ -93,23 +94,17 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
         invoice_number: dokuInvoiceNumber,
         callback_url: callbackUrl,
         callback_url_cancel: callbackUrlCancel,
-        auto_redirect: true,
-        line_items: (productDetails && productDetails.length > 0)
-          ? productDetails.map((item: any) => ({
-              name: String(item.name || "Topup Game").slice(0, 50),
-              price: Math.round(Number(item.price || amount)),
-              quantity: Number(item.quantity || 1)
-            }))
-          : [
-              {
-                name: "Jasa Topup / Joki BreakoutOps",
-                price: Math.round(Number(amount)),
-                quantity: 1
-              }
-            ]
+        callback_url_result: callbackUrlResult,
+        line_items: [
+          {
+            name: "Layanan Jasa BreakoutOps",
+            price: Math.round(Number(amount)),
+            quantity: 1
+          }
+        ]
       },
       payment: {
-        payment_due_date: 60 // 60 menit
+        payment_due_date: 60 // 60 minutes
       },
       customer: {
         name: customerName || "Pelanggan BreakoutOps",
@@ -180,6 +175,145 @@ const dokuPaidInvoices = new Map<string, {
   paidAt: string;
   raw?: any;
 }>();
+
+// Dedicated DOKU Return Breakout Page
+// Handles 'Back to Merchant' from inside DOKU frames or new tabs smoothly
+app.get(["/doku-return", "/api/payment/doku/return"], (req, res) => {
+  const invoiceNumber = String(req.query.invoice_number || req.query.invoice || req.query.order_id || "");
+  const status = String(req.query.status || "success");
+
+  if (invoiceNumber) {
+    const cleanBase = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "");
+    const entry = {
+      invoiceNumber: cleanBase,
+      status: "SUCCESS",
+      amount: 0,
+      channel: "DOKU_CHECKOUT",
+      paidAt: new Date().toISOString()
+    };
+    dokuPaidInvoices.set(cleanBase, entry);
+    dokuPaidInvoices.set(invoiceNumber, entry);
+  }
+
+  // Breakout HTML response: guarantees escaping DOKU iframe and navigating top window
+  res.send(`<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kembali ke Merchant - BreakoutOps</title>
+  <style>
+    body {
+      background-color: #09090b;
+      color: #fafafa;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 16px;
+      padding: 32px 24px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #10b981;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: #10b981;
+    }
+    p {
+      color: #a1a1aa;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0 0 20px;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 16px;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h2>Pembayaran Selesai!</h2>
+    <p>Mengalihkan Anda kembali ke halaman pesanan BreakoutOps...</p>
+    <a id="btnRedirect" class="btn" href="/">Buka Pesanan Saya</a>
+  </div>
+
+  <script>
+    (function() {
+      var invoice = "${encodeURIComponent(invoiceNumber)}";
+      var status = "${encodeURIComponent(status)}";
+      var targetUrl = window.location.origin + "/?invoice_number=" + invoice + "&status=" + status;
+      
+      var btn = document.getElementById("btnRedirect");
+      if (btn) btn.href = targetUrl;
+
+      function doRedirect() {
+        try {
+          // If inside iframe or popup, break out to top window
+          if (window.top && window.top !== window) {
+            window.top.location.href = targetUrl;
+          } else if (window.opener && !window.opener.closed) {
+            try {
+              window.opener.location.href = targetUrl;
+              window.close();
+            } catch(e) {
+              window.location.href = targetUrl;
+            }
+          } else {
+            window.location.href = targetUrl;
+          }
+        } catch (e) {
+          window.location.href = targetUrl;
+        }
+      }
+
+      // Execute breakout immediately
+      doRedirect();
+
+      // Fallback timer
+      setTimeout(doRedirect, 800);
+    })();
+  </script>
+</body>
+</html>`);
+});
 
 // API: Check status of an invoice
 app.get("/api/payment/doku/status/:invoiceNumber", async (req, res) => {
