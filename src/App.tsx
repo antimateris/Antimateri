@@ -262,6 +262,76 @@ export default function App() {
     };
   }, []);
 
+  // Detect DOKU Return URL parameters (?invoice_number=...&status=success)
+  useEffect(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const rawInvoice = urlParams.get('invoice_number') || urlParams.get('invoice') || urlParams.get('order_id') || urlParams.get('orderNumber');
+      const status = urlParams.get('status') || urlParams.get('payment_status') || urlParams.get('status_type') || urlParams.get('result');
+
+      if (rawInvoice) {
+        // Strip any test suffix if present (e.g. INV-260830-1001-A9F2 -> INV-260830-1001)
+        const parts = rawInvoice.split('-');
+        const invoiceNumber = parts.length > 2 && parts[parts.length - 1].length === 4 
+          ? parts.slice(0, -1).join('-') 
+          : rawInvoice;
+
+        console.log(`[DOKU Return] Detected return from DOKU for invoice: ${invoiceNumber} (raw: ${rawInvoice}), status: ${status}`);
+        
+        // 1. Immediately dismiss any unpaid modal
+        setPaymentOrder(null);
+
+        // 2. Auto navigate to tracking tab
+        setTrackingInitialQuery(invoiceNumber);
+        setActiveTab('track');
+
+        // 3. Mark invoice as paid in backend & orders state
+        const isNotFailed = !status || status.toLowerCase() !== 'failed' && status.toLowerCase() !== 'cancel';
+        if (isNotFailed) {
+          // Inform backend
+          fetch('/api/payment/doku/simulate-success', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invoiceNumber, amount: 0 })
+          }).catch(() => {});
+
+          // Update local state & Firestore
+          setOrders((prevOrders) =>
+            prevOrders.map((ord) => {
+              if ((ord.invoiceNumber === invoiceNumber || ord.invoiceNumber === rawInvoice) && ord.paymentStatus !== 'paid') {
+                const updated: Order = {
+                  ...ord,
+                  paymentStatus: 'paid',
+                  orderStatus: ord.orderStatus === 'verifying' ? 'queued' : (ord.orderStatus === 'pending' ? 'queued' : ord.orderStatus),
+                  paidAt: new Date().toISOString(),
+                  paymentProofDate: new Date().toISOString(),
+                  progressHistory: [
+                    ...(ord.progressHistory || []),
+                    {
+                      id: `prf_doku_${Date.now()}`,
+                      timestamp: new Date().toISOString(),
+                      note: `Pembayaran DOKU Berhasil Dikonfirmasi. Pesanan masuk antrean sistem.`,
+                      workerName: 'DOKU Payment Gateway',
+                      progressPercent: 5
+                    }
+                  ]
+                };
+                saveOrderToFirestore(updated);
+                return updated;
+              }
+              return ord;
+            })
+          );
+        }
+
+        // Clean up URL search parameters without reloading page
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {
+      console.warn('Error parsing return URL params:', e);
+    }
+  }, []);
+
   // Save to localStorage when state changes as instant cache
   useEffect(() => {
     try {

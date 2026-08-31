@@ -4,7 +4,6 @@ import {
   Clock, 
   AlertCircle, 
   Copy, 
-  FileText, 
   CheckCircle2, 
   UploadCloud, 
   Image as ImageIcon, 
@@ -14,20 +13,22 @@ import {
   ExternalLink,
   ArrowRight,
   Receipt,
-  QrCode,
-  Building2,
-  Wallet,
-  Zap,
-  RefreshCw,
   Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  Info
+  Info,
+  RefreshCw,
+  Zap,
+  CreditCard
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Order, SystemSettings } from '../types';
-import { formatRupiah, formatDate } from '../utils/helpers';
+import { formatRupiah } from '../utils/helpers';
+import { saveOrderToFirestore } from '../lib/firebase';
+
+declare global {
+  interface Window {
+    loadJokulCheckout?: (url: string) => void;
+  }
+}
 
 interface PaymentModalProps {
   order: Order;
@@ -38,29 +39,6 @@ interface PaymentModalProps {
   onOpenTracking?: (invoice: string) => void;
 }
 
-type PaymentMethodId = 
-  | 'qris_auto' 
-  | 'bca_va' 
-  | 'mandiri_va' 
-  | 'bri_va' 
-  | 'bni_va' 
-  | 'dana' 
-  | 'gopay' 
-  | 'ovo' 
-  | 'manual_bca';
-
-interface PaymentOption {
-  id: PaymentMethodId;
-  name: string;
-  category: 'qris' | 'va' | 'ewallet' | 'manual';
-  badge: string;
-  icon: string;
-  description: string;
-  accountNumber?: string;
-  accountHolder?: string;
-  instructions?: string[];
-}
-
 export const PaymentModal: React.FC<PaymentModalProps> = ({
   order,
   settings,
@@ -69,183 +47,128 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onGoToTracking,
   onOpenTracking,
 }) => {
-  const [selectedMethodId, setSelectedMethodId] = useState<PaymentMethodId>('qris_auto');
-  const [copied, setCopied] = useState<boolean>(false);
   const [copiedAmount, setCopiedAmount] = useState<boolean>(false);
+  const [copiedInvoice, setCopiedInvoice] = useState<boolean>(false);
   const [timeLeft, setTimeLeft] = useState<number>(899); // 15 menit countdown
   
-  // Auto-verification & polling states
-  const [isAutoChecking, setIsAutoChecking] = useState<boolean>(false);
+  // DOKU Checkout states
   const [isCreatingDokuCheckout, setIsCreatingDokuCheckout] = useState<boolean>(false);
+  const [isAutoChecking, setIsAutoChecking] = useState<boolean>(false);
   const [dokuPaymentUrl, setDokuPaymentUrl] = useState<string | null>(null);
-  const [checkStatusFeedback, setCheckStatusFeedback] = useState<string | null>(null);
+  const [checkoutFeedback, setCheckoutFeedback] = useState<string | null>(null);
   const [isPaidSuccess, setIsPaidSuccess] = useState<boolean>(order.paymentStatus === 'paid');
   const [paidOrderState, setPaidOrderState] = useState<Order>(order);
 
-  // Manual proof states
+  // Manual proof verification states (fallback)
   const [proofImage, setProofImage] = useState<string | null>(order.paymentProofUrl || null);
   const [proofFileName, setProofFileName] = useState<string>('');
   const [proofFileSize, setProofFileSize] = useState<string>('');
+  const [paymentNote, setPaymentNote] = useState<string>('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isManualSubmitting, setIsManualSubmitting] = useState<boolean>(false);
   const [isManualSubmitted, setIsManualSubmitted] = useState<boolean>(order.paymentStatus === 'verifying');
+  const [showManualUpload, setShowManualUpload] = useState<boolean>(false);
 
-  // Accordion instruction tab
-  const [showInstructions, setShowInstructions] = useState<boolean>(false);
+  const isCompletedRef = useRef<boolean>(isPaidSuccess);
 
-  // Determine current active gateway provider from settings
-  const gatewayProvider = settings?.paymentGatewayProvider || 'doku';
-  const gatewayMode = settings?.paymentGatewayMode || 'sandbox';
+  // Trigger celebration confetti & update order state
+  const triggerPaymentSuccess = (paidDetails?: { channel?: string; paidAt?: string }) => {
+    if (isCompletedRef.current) return;
+    isCompletedRef.current = true;
 
-  // Format nomor Virtual Account DOKU SNAP resmi (seperti pada Codashop / DOKU Merchant)
-  // Prefix BIN DOKU: Mandiri (88899), BCA (88012 / Company Code DOKU), BRI (12800), BNI (88033)
-  const invoiceDigits = order.invoiceNumber.replace(/\D/g, '').slice(-6) || '178793';
-  const clientPrefix = (settings?.dokuClientId?.split('-')[1]) || '0266';
-  
-  // Format DOKU Generated Payment Code (DGPC)
-  const vaBCA = `88012${clientPrefix}${invoiceDigits}`;
-  const vaMandiri = `88899${clientPrefix}${invoiceDigits}`;
-  const vaBRI = `12800${clientPrefix}${invoiceDigits}`;
-  const vaBNI = `88033${clientPrefix}${invoiceDigits}`;
-  const merchantHolder = `DOKU - ${settings?.storeName || 'BREAKOUTOPS STORE'}`;
+    try {
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    } catch {}
 
-  const paymentOptions: PaymentOption[] = [
-    {
-      id: 'qris_auto',
-      name: 'QRIS Real-Time (SNAP BI)',
-      category: 'qris',
-      badge: 'OTOMATIS 1 DETIK',
-      icon: '📱',
-      description: 'Scan BCA Mobile, Mandiri Livin, GoPay, DANA, OVO, ShopeePay',
-      accountHolder: 'PT NUSA SATU INTI ARTHA (DOKU)',
-      instructions: [
-        'Buka aplikasi e-Wallet atau Mobile Banking Anda (BCA, Livin, GoPay, DANA, dll).',
-        'Pilih menu Scan / Bayar QRIS.',
-        'Arahkan kamera ke QR Code di atas.',
-        'Periksa nama penerima: PT NUSA SATU INTI ARTHA / DOKU.',
-        'Pastikan nominal tagihan tepat tanpa dibulatkan.',
-        'Masukkan PIN Anda dan selesaikan transaksi. Pesanan otomatis terverifikasi lunas dalam hitungan detik!'
+    const updated: Order = {
+      ...order,
+      paymentMethod: (paidDetails?.channel as any) || 'DOKU Checkout (Payment Gateway)',
+      paymentStatus: 'paid',
+      orderStatus: 'pending',
+      paymentProofDate: paidDetails?.paidAt || new Date().toISOString(),
+      progressHistory: [
+        ...(order.progressHistory || []),
+        {
+          id: `prog_${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          workerName: 'DOKU Webhook Gateway',
+          progressPercent: 0,
+          note: 'Pembayaran berhasil diverifikasi secara otomatis oleh sistem DOKU Gateway.'
+        }
       ]
-    },
-    {
-      id: 'bca_va',
-      name: 'BCA Virtual Account (DOKU)',
-      category: 'va',
-      badge: 'DOKU SNAP',
-      icon: '🏦',
-      description: 'Verifikasi instan via BCA Mobile, KlikBCA & ATM BCA',
-      accountNumber: vaBCA,
-      accountHolder: merchantHolder,
-      instructions: [
-        'Buka aplikasi BCA Mobile / myBCA atau ke ATM BCA terdekat.',
-        'Pilih menu m-Transfer ➔ BCA Virtual Account.',
-        `Masukkan nomor Virtual Account DOKU: ${vaBCA}`,
-        'Nama Merchant yang muncul adalah: PT NUSA SATU INTI ARTHA / DOKU.',
-        `Pastikan nominal tagihan sesuai (${formatRupiah(order.totalPrice)}).`,
-        'Masukkan PIN BCA Anda dan konfirmasi pembayaran.'
-      ]
-    },
-    {
-      id: 'mandiri_va',
-      name: 'Mandiri Virtual Account (DOKU)',
-      category: 'va',
-      badge: 'DOKU SNAP',
-      icon: '🏦',
-      description: 'Verifikasi instan via Livin by Mandiri & ATM Mandiri',
-      accountNumber: vaMandiri,
-      accountHolder: merchantHolder,
-      instructions: [
-        'Buka aplikasi Livin\' by Mandiri.',
-        'Pilih menu Bayar ➔ Cari Penyedia Jasa: "DOKU" / "88899".',
-        `Masukkan nomor Virtual Account: ${vaMandiri}`,
-        'Periksa nama penerima DOKU dan total tagihan.',
-        'Masukkan MPIN Livin Anda untuk menyelesaikan pembayaran.'
-      ]
-    },
-    {
-      id: 'bri_va',
-      name: 'BRI BRIVA (DOKU)',
-      category: 'va',
-      badge: 'DOKU SNAP',
-      icon: '🏦',
-      description: 'Verifikasi instan via BRImo & ATM BRI',
-      accountNumber: vaBRI,
-      accountHolder: merchantHolder,
-      instructions: [
-        'Buka aplikasi BRImo.',
-        'Pilih menu BRIVA ➔ Pembayaran Baru.',
-        `Masukkan nomor BRIVA DOKU: ${vaBRI}`,
-        'Nama Institusi: DOKU / PT NUSA SATU INTI ARTHA.',
-        'Konfirmasi detail tagihan dan masukkan PIN BRImo.'
-      ]
-    },
-    {
-      id: 'bni_va',
-      name: 'BNI Virtual Account (DOKU)',
-      category: 'va',
-      badge: 'DOKU SNAP',
-      icon: '🏦',
-      description: 'Verifikasi instan via BNI Mobile Banking & ATM BNI',
-      accountNumber: vaBNI,
-      accountHolder: merchantHolder,
-      instructions: [
-        'Buka aplikasi BNI Mobile Banking.',
-        'Pilih menu Transfer ➔ Virtual Account Billing.',
-        `Masukkan nomor VA DOKU: ${vaBNI}`,
-        'Nama Merchant: DOKU MERCHANT.',
-        'Konfirmasi tagihan dan masukkan password transaksi BNI.'
-      ]
-    },
-    {
-      id: 'dana',
-      name: 'DANA E-Wallet Instant',
-      category: 'ewallet',
-      badge: 'INSTANT',
-      icon: '💳',
-      description: 'Transfer saldo DANA resmi terhubung',
-      accountNumber: settings?.whatsappCSNumber || '082198765432',
-      accountHolder: 'BREAKOUTOPS OFFICIAL',
-      instructions: [
-        'Buka aplikasi DANA di ponsel Anda.',
-        'Pilih menu Kirim ➔ Kirim ke Akun DANA / Nomor HP.',
-        `Masukkan nomor: ${settings?.whatsappCSNumber || '082198765432'}`,
-        `Kirim nominal tepat: ${formatRupiah(order.totalPrice)}.`
-      ]
-    },
-    {
-      id: 'gopay',
-      name: 'GoPay Instant',
-      category: 'ewallet',
-      badge: 'INSTANT',
-      icon: '💳',
-      description: 'Transfer saldo GoPay / GoPay App',
-      accountNumber: settings?.whatsappCSNumber || '082198765432',
-      accountHolder: 'BREAKOUTOPS OFFICIAL',
-      instructions: [
-        'Buka aplikasi GoPay / Gojek.',
-        'Pilih menu Bayar / Transfer.',
-        `Kirim ke nomor: ${settings?.whatsappCSNumber || '082198765432'}`,
-        `Kirim nominal tepat: ${formatRupiah(order.totalPrice)}.`
-      ]
-    },
-    {
-      id: 'manual_bca',
-      name: 'Rekening Manual (Upload Bukti)',
-      category: 'manual',
-      badge: 'VERIFIKASI OWNER',
-      icon: '📑',
-      description: 'Transfer rekening bank biasa & kirim bukti struk',
-      accountNumber: '8801299834',
-      accountHolder: 'ARENA BREAKOUT OPS STORE',
-      instructions: [
-        'Transfer langsung ke nomor rekening BCA: 8801299834 (A.N. ARENA BREAKOUT OPS STORE).',
-        'Unggah foto screenshot struk transfer pada form di bawah.',
-        'Klik Konfirmasi Pembayaran. Owner akan memvalidasi pesanan Anda.'
-      ]
+    };
+
+    setPaidOrderState(updated);
+    setIsPaidSuccess(true);
+    saveOrderToFirestore(updated);
+
+    if (onPaymentSuccess) {
+      onPaymentSuccess(updated);
     }
-  ];
+  };
 
-  const selectedMethod = paymentOptions.find(opt => opt.id === selectedMethodId) || paymentOptions[0];
+  // Real-time automatic polling to check if DOKU Webhook marked invoice as paid
+  useEffect(() => {
+    if (isPaidSuccess || isCompletedRef.current) return;
+
+    // Check if order prop itself changed to paid via Firestore onSnapshot
+    if (order.paymentStatus === 'paid') {
+      triggerPaymentSuccess();
+      return;
+    }
+
+    const checkPaymentStatus = async () => {
+      if (isCompletedRef.current) return;
+      try {
+        const res = await fetch(`/api/payment/doku/status/${order.invoiceNumber}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.paid) {
+            triggerPaymentSuccess({
+              channel: data.channel,
+              paidAt: data.paidAt
+            });
+          }
+        }
+      } catch (e) {
+        // Silently ignore polling network errors
+      }
+    };
+
+    const checkInterval = setInterval(checkPaymentStatus, 2000);
+
+    // Also check immediately when user switches back to this tab from DOKU
+    const handleWindowFocus = () => {
+      checkPaymentStatus();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      clearInterval(checkInterval);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [order.invoiceNumber, isPaidSuccess, order.paymentStatus]);
+
+  // Listen to postMessage from DOKU Jokul iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        if (!event.data) return;
+        const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+        if (data.status === 'SUCCESS' || data.paymentStatus === 'SUCCESS' || data.event === 'PAYMENT_SUCCESS') {
+          triggerPaymentSuccess({ channel: data.channel || 'DOKU_CHECKOUT' });
+        }
+      } catch {}
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   // Countdown timer
   useEffect(() => {
@@ -261,50 +184,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const handleCopyAmount = () => {
     navigator.clipboard.writeText(order.totalPrice.toString());
     setCopiedAmount(true);
     setTimeout(() => setCopiedAmount(false), 2000);
   };
 
-  // Trigger celebration confetti
-  const triggerCelebration = () => {
-    try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-    } catch {
-      // safe fallback
-    }
+  const handleCopyInvoice = () => {
+    navigator.clipboard.writeText(order.invoiceNumber);
+    setCopiedInvoice(true);
+    setTimeout(() => setCopiedInvoice(false), 2000);
   };
 
-  // Check payment status from gateway
-  const handleCheckStatus = () => {
-    setIsAutoChecking(true);
-    setCheckStatusFeedback(null);
-    setTimeout(() => {
-      setIsAutoChecking(false);
-      if (paidOrderState.paymentStatus === 'paid') {
-        setIsPaidSuccess(true);
-        triggerCelebration();
-      } else {
-        setCheckStatusFeedback('Sistem sedang menunggu dana masuk dari Bank / E-Wallet. Silakan selesaikan pembayaran dan cek kembali.');
-      }
-    }, 1200);
-  };
-
-  // Request DOKU Checkout Hosted URL from Backend API
-  const handleOpenDokuCheckout = async () => {
+  // Launch DOKU Jokul Checkout (Popup SDK / Redirect)
+  const handleLaunchJokulCheckout = async () => {
     setIsCreatingDokuCheckout(true);
-    setCheckStatusFeedback(null);
+    setCheckoutFeedback(null);
     try {
       const response = await fetch('/api/payment/doku/checkout', {
         method: 'POST',
@@ -328,21 +223,73 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       const resData = await response.json();
       if (resData.success && resData.paymentUrl) {
-        setDokuPaymentUrl(resData.paymentUrl);
-        window.open(resData.paymentUrl, '_blank', 'noopener,noreferrer');
-        setCheckStatusFeedback('Halaman pembayaran resmi DOKU telah dibuka di tab baru. Silakan selesaikan transaksi lalu klik Cek Status di sini.');
+        const paymentUrl = resData.paymentUrl;
+        setDokuPaymentUrl(paymentUrl);
+
+        // Open in new tab so 'Kembali ke Merchant' redirects the full tab without iframe blockage
+        const newWindow = window.open(paymentUrl, '_blank', 'noopener,noreferrer');
+        if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+          // Fallback if popup blocker is active
+          if (typeof window.loadJokulCheckout === 'function') {
+            try {
+              window.loadJokulCheckout(paymentUrl);
+            } catch {}
+          }
+        }
+
+        setCheckoutFeedback('⚡ Halaman pembayaran DOKU telah dibuka. Selesaikan pembayaran di web DOKU, lalu klik "Kembali ke Merchant". Sistem akan otomatis mendeteksi status transaksi.');
       } else {
-        setCheckStatusFeedback(resData.message || 'Gagal memuat checkout resmi DOKU. Menggunakan instruksi pembayaran langsung.');
+        setCheckoutFeedback(`⚠️ ${resData.message || 'Gagal membuat sesi pembayaran DOKU.'}`);
       }
     } catch (err: any) {
       console.error('DOKU Checkout error:', err);
-      setCheckStatusFeedback('Gagal terhubung ke API backend DOKU. Silakan gunakan nomor Virtual Account & QRIS di atas.');
+      setCheckoutFeedback('⚠️ Gagal terhubung ke server pembayaran. Silakan coba kembali atau hubungi Admin.');
     } finally {
       setIsCreatingDokuCheckout(false);
     }
   };
 
-  // File upload handler for manual transfer
+  // Manual status check button
+  const handleManualCheckStatus = async () => {
+    setIsAutoChecking(true);
+    try {
+      const res = await fetch(`/api/payment/doku/status/${order.invoiceNumber}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.paid) {
+          triggerPaymentSuccess({
+            channel: data.channel,
+            paidAt: data.paidAt
+          });
+          return;
+        }
+      }
+      setCheckoutFeedback('ℹ️ Pembayaran belum terdeteksi dari DOKU. Pastikan Anda telah menyelesaikan transaksi di aplikasi e-wallet/bank.');
+    } catch (e) {
+      setCheckoutFeedback('⚠️ Gagal memeriksa status pembayaran.');
+    } finally {
+      setIsAutoChecking(false);
+    }
+  };
+
+  // Sandbox Test Simulation button
+  const handleSimulatePayment = async () => {
+    try {
+      await fetch('/api/payment/doku/simulate-success', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoiceNumber: order.invoiceNumber,
+          amount: order.totalPrice
+        })
+      });
+      triggerPaymentSuccess({ channel: 'DOKU_SANDBOX_SIMULATION' });
+    } catch (e) {
+      console.error('Simulate payment failed:', e);
+    }
+  };
+
+  // File upload handler for manual payment proof (fallback)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setUploadError(null);
     const file = e.target.files?.[0];
@@ -376,27 +323,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setUploadError(null);
   };
 
-  // Manual payment submission (for manual bank transfer)
+  // Manual payment proof submission fallback
   const handleManualSubmit = () => {
     setIsManualSubmitting(true);
     setTimeout(() => {
       const updated: Order = {
         ...order,
-        paymentMethod: selectedMethod.name as any,
+        paymentMethod: 'DOKU Checkout (Manual Struk)' as any,
         paymentStatus: 'verifying',
         orderStatus: 'verifying',
         paymentProofUrl: proofImage || undefined,
         paymentProofDate: new Date().toISOString(),
+        customerNotes: paymentNote ? `${order.customerNotes || ''} [Catatan: ${paymentNote}]`.trim() : order.customerNotes,
         progressHistory: [
           ...(order.progressHistory || []),
           {
             id: `prog_${Date.now()}`,
             timestamp: new Date().toISOString(),
-            workerName: 'System',
+            workerName: 'Customer',
             progressPercent: 0,
-            note: proofImage 
-              ? `Bukti transfer (${selectedMethod.name}) telah diunggah oleh pelanggan. Menunggu verifikasi manual oleh Admin/Owner.`
-              : `Pelanggan mengonfirmasi transfer (${selectedMethod.name}). Menunggu verifikasi manual oleh Admin/Owner.`
+            note: 'Bukti pembayaran telah diunggah oleh pelanggan. Menunggu verifikasi manual Admin/Owner.'
           }
         ]
       };
@@ -404,6 +350,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setPaidOrderState(updated);
       setIsManualSubmitted(true);
       setIsManualSubmitting(false);
+      saveOrderToFirestore(updated);
 
       if (onPaymentSuccess) {
         onPaymentSuccess(updated);
@@ -422,15 +369,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   // ========================================================
-  // VIEW 1: SUCCESS PAID RESI (AUTOMATIC INSTANT COMPLETION)
+  // VIEW 1: SUCCESS PAID RESI (AUTOMATIC TRIGGER)
   // ========================================================
   if (isPaidSuccess) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
-        <div className="relative w-full max-w-lg bg-zinc-900 border-2 border-emerald-500/60 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
+        <div className="relative w-full max-w-lg bg-zinc-900 border-2 border-emerald-500/80 rounded-3xl shadow-2xl overflow-hidden my-6 animate-in zoom-in-95 duration-200">
           
-          {/* Header Resi Sukses */}
-          <div className="bg-gradient-to-b from-emerald-500/20 via-zinc-900 to-zinc-900 px-6 pt-8 pb-6 border-b border-zinc-800 text-center relative">
+          <div className="bg-gradient-to-b from-emerald-500/25 via-zinc-900 to-zinc-900 px-6 pt-8 pb-6 border-b border-zinc-800 text-center relative">
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -442,21 +388,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <Check className="w-9 h-9 stroke-[3]" />
             </div>
 
-            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical inline-block mb-1">
-              PEMBAYARAN OTOMATIS LUNAS
-            </span>
+            <div className="flex items-center justify-center space-x-1.5 mb-1">
+              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical">
+                OTOMATIS TERVERIFIKASI
+              </span>
+              <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+            </div>
+
             <h3 className="font-tactical text-2xl font-black text-white uppercase tracking-wider">
-              TRANSAKSI BERHASIL
+              PEMBAYARAN DOKU BERHASIL!
             </h3>
             <p className="text-xs text-zinc-400 mt-1">
-              Pesanan telah masuk ke antrean pengerjaan pro joki BreakoutOps
+              Sistem telah mendeteksi pembayaran lunas. Pesanan otomatis masuk ke antrean pengerjaan.
             </p>
           </div>
 
-          {/* Body Resi */}
           <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto text-xs">
-            
-            {/* Invoice Detail Box */}
             <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
               <div className="flex items-center justify-between pb-2.5 border-b border-zinc-800">
                 <span className="text-zinc-400">Nomor Invoice:</span>
@@ -476,14 +424,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
 
               <div className="flex justify-between">
-                <span className="text-zinc-400">Metode Bayar:</span>
-                <span className="text-emerald-400 font-bold">{selectedMethod.name}</span>
+                <span className="text-zinc-400">Gateway:</span>
+                <span className="text-emerald-400 font-bold">DOKU Webhook Verified</span>
               </div>
 
               <div className="flex justify-between">
-                <span className="text-zinc-400">Status Pembayaran:</span>
+                <span className="text-zinc-400">Status Transaksi:</span>
                 <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-black uppercase text-[10px]">
-                  PAID / LUNAS
+                  LUNAS / PAID (AUTOMATIC)
                 </span>
               </div>
 
@@ -495,16 +443,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </div>
             </div>
 
-            {/* Next Step Info */}
             <div className="p-3.5 bg-emerald-950/30 border border-emerald-500/30 rounded-2xl flex items-start space-x-2.5 text-emerald-300">
               <ShieldCheck className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" />
               <div className="text-[11px] leading-relaxed">
                 <span className="font-bold block text-emerald-200">Akun Anda Siap Diproses:</span>
-                Joki akan segera ditugaskan untuk menyelesaikan raid extraction. Anda dapat memantau progres live pengerjaan kapan saja.
+                Pro joki BreakoutOps akan segera ditugaskan untuk mengekstrak misi dan mengamankan target pesanan Anda.
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="space-y-2 pt-2">
               <button
                 type="button"
@@ -520,10 +466,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 onClick={onClose}
                 className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white font-semibold text-xs rounded-xl transition-all cursor-pointer"
               >
-                Tutup Jendela
+                Tutup
               </button>
             </div>
-
           </div>
         </div>
       </div>
@@ -531,7 +476,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }
 
   // ========================================================
-  // VIEW 2: MANUAL SUBMISSION RECEIPT
+  // VIEW 2: MANUAL SUBMITTED SCREEN (FALLBACK)
   // ========================================================
   if (isManualSubmitted) {
     return (
@@ -551,25 +496,31 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
 
             <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-tactical inline-block mb-1">
-              BUKTI DITERIMA
+              BUKTI BERHASIL DIKIRIM
             </span>
             <h3 className="font-tactical text-2xl font-black text-white uppercase tracking-wider">
-              MENUNGGU VERIFIKASI OWNER
+              MENUNGGU VERIFIKASI ADMIN
             </h3>
             <p className="text-xs text-zinc-400 mt-1">
-              Pesanan #{paidOrderState.invoiceNumber} sedang diverifikasi oleh admin.
+              Pesanan #{paidOrderState.invoiceNumber} sedang diverifikasi manual oleh Admin.
             </p>
           </div>
 
           <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto text-xs">
-            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-2">
+            <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3">
+              <div className="flex justify-between">
+                <span className="text-zinc-400">Nomor Invoice:</span>
+                <span className="text-amber-400 font-bold font-mono">{paidOrderState.invoiceNumber}</span>
+              </div>
               <div className="flex justify-between">
                 <span className="text-zinc-400">Total Tagihan:</span>
-                <span className="text-amber-400 font-bold font-mono">{formatRupiah(paidOrderState.totalPrice)}</span>
+                <span className="text-white font-bold font-mono">{formatRupiah(paidOrderState.totalPrice)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-400">Status:</span>
-                <span className="text-amber-400 font-bold">Sedang Diverifikasi</span>
+                <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-black uppercase text-[10px]">
+                  VERIFIKASI MANUAL
+                </span>
               </div>
             </div>
 
@@ -579,7 +530,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 onClick={handleNavigateToTrack}
                 className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-black text-xs font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer"
               >
-                <span>Lacak Pesanan di Live Tracking</span>
+                <span>Lacak Status di Live Tracking</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
               </button>
             </div>
@@ -590,25 +541,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   }
 
   // ========================================================
-  // VIEW 3: MAIN DYNAMIC PAYMENT CHECKOUT UI
+  // VIEW 3: MAIN DOKU CHECKOUT WITH AUTOMATIC REALTIME DETECTION
   // ========================================================
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-4xl bg-zinc-900 border-2 border-amber-500/50 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-2xl bg-zinc-900 border-2 border-amber-500/60 rounded-3xl shadow-2xl overflow-hidden my-4 sm:my-6 animate-in zoom-in-95 duration-200 flex flex-col max-h-[94vh]">
         
         {/* Modal Top Header */}
         <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 px-5 sm:px-6 py-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400">
-              <QrCode className="w-5 h-5" />
+            <div className="p-2.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-400">
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="font-tactical text-lg sm:text-xl font-black text-white uppercase tracking-wider">
-                  PEMBAYARAN OTOMATIS
+                  PEMBAYARAN RESMI DOKU
                 </h3>
-                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical hidden sm:inline-block">
-                  REAL-TIME VERIFIKASI
+                <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-tactical flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  <span>OTOMATIS DETEKSI</span>
                 </span>
               </div>
               <p className="text-xs text-zinc-400">
@@ -631,340 +583,221 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Body: 2 Columns on Desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-0 overflow-y-auto flex-1 divide-y lg:divide-y-0 lg:divide-x divide-zinc-800">
+        {/* Modal Scrollable Body */}
+        <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1 text-xs">
           
-          {/* Left Column: Method Selector & Order Details (5 cols) */}
-          <div className="lg:col-span-5 p-4 sm:p-5 space-y-4 bg-zinc-950/60">
-            
-            {/* Order Price Highlight */}
-            <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 p-4 rounded-2xl border border-amber-500/30 space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 block">
-                TOTAL YANG HARUS DIBAYAR:
-              </span>
-              <div className="flex items-center justify-between">
+          {/* Order Summary Card */}
+          <div className="bg-gradient-to-br from-zinc-950 to-zinc-900 p-4 sm:p-5 rounded-3xl border border-amber-500/30 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 block">
+                  TOTAL PEMBAYARAN:
+                </span>
                 <span className="text-2xl sm:text-3xl font-black font-tactical text-amber-400 tracking-wide">
                   {formatRupiah(order.totalPrice)}
                 </span>
+              </div>
+
+              <div className="flex items-center space-x-2">
                 <button
                   type="button"
                   onClick={handleCopyAmount}
-                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition-colors border border-amber-500/30 flex items-center space-x-1 cursor-pointer"
-                  title="Salin Angka Tepat"
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-xl transition-colors border border-amber-500/30 flex items-center space-x-1.5 cursor-pointer"
                 >
-                  {copiedAmount ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedAmount ? 'Tersalin' : 'Salin'}</span>
+                  {copiedAmount ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedAmount ? 'Tersalin' : 'Salin Nominal'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyInvoice}
+                  className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition-colors border border-zinc-700 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  {copiedInvoice ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedInvoice ? 'Tersalin' : 'Salin Invoice'}</span>
                 </button>
               </div>
-              <div className="pt-2 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex justify-between">
-                <span>Paket: <strong className="text-white font-medium">{order.packageName}</strong></span>
-                <span>Nick: <strong className="text-amber-300 font-mono font-medium">{order.gameNickname}</strong></span>
-              </div>
             </div>
 
-            {/* Payment Method Selector Grid */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300">
-                PILIH METODE PEMBAYARAN:
-              </label>
-              <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                {paymentOptions.map((opt) => {
-                  const isSelected = selectedMethodId === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setSelectedMethodId(opt.id)}
-                      className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-amber-500/15 border-amber-500 text-white ring-1 ring-amber-500/40 shadow-lg'
-                          : 'bg-zinc-900/80 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-700 hover:bg-zinc-900'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <span className="text-xl shrink-0">{opt.icon}</span>
-                        <div className="truncate">
-                          <div className="flex items-center space-x-1.5">
-                            <span className="font-bold text-xs text-white truncate">{opt.name}</span>
-                            {opt.badge && (
-                              <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded font-tactical ${
-                                opt.category === 'qris' 
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : opt.category === 'va'
-                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                  : 'bg-zinc-800 text-zinc-400'
-                              }`}>
-                                {opt.badge}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-zinc-500 block truncate">{opt.description}</span>
-                        </div>
-                      </div>
-
-                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 ml-2 ${
-                        isSelected ? 'border-amber-400 bg-amber-500 text-black' : 'border-zinc-700'
-                      }`}>
-                        {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                      </div>
-                    </button>
-                  );
-                })}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] text-zinc-400">
+              <div>
+                <span className="text-zinc-500 block">Paket Layanan:</span>
+                <strong className="text-white font-medium truncate block">{order.packageName}</strong>
+              </div>
+              <div>
+                <span className="text-zinc-500 block">Nickname Akun:</span>
+                <strong className="text-amber-300 font-mono font-medium truncate block">{order.gameNickname}</strong>
+              </div>
+              <div className="col-span-2 sm:col-span-1">
+                <span className="text-zinc-500 block">Sistem Pembayaran:</span>
+                <strong className="text-emerald-400 font-medium">DOKU Jokul Gateway (Auto)</strong>
               </div>
             </div>
+          </div>
 
-            {/* Provider Info Badge */}
-            <div className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-xl text-[11px] text-zinc-400 flex items-center justify-between">
-              <span>Engine Gateway:</span>
-              <span className="font-mono font-bold text-amber-400 uppercase">
-                {gatewayProvider === 'doku' ? 'DOKU SNAP BI' : gatewayProvider === 'midtrans' ? 'MIDTRANS SNAP' : gatewayProvider === 'tripay' ? 'TRIPAY OPEN API' : 'AUTO SIMULATOR'}
+          {/* DOKU One-Click Action Card */}
+          <div className="bg-gradient-to-b from-blue-950/40 via-zinc-950 to-zinc-950 p-5 rounded-3xl border-2 border-blue-500/40 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/50 flex items-center justify-center text-blue-400 font-black">
+                  <Zap className="w-4 h-4 fill-current" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-sm">
+                    Bayar Otomatis Lewat DOKU Checkout
+                  </h4>
+                  <span className="text-[10px] text-zinc-400">
+                    QRIS Realtime • Virtual Account • E-Wallet
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] text-blue-300 bg-blue-500/20 px-2.5 py-1 rounded-full border border-blue-500/30 font-mono font-bold">
+                Auto-Detect ⚡
               </span>
             </div>
 
-          </div>
+            <p className="text-zinc-300 text-xs leading-relaxed">
+              Klik tombol di bawah untuk membuka popup pembayaran DOKU. Setelah Anda membayar di aplikasi bank/e-wallet Anda, <strong>halaman ini akan langsung otomatis berubah menjadi Lunas</strong> tanpa perlu upload foto bukti.
+            </p>
 
-          {/* Right Column: Interactive Payment Presentation (7 cols) */}
-          <div className="lg:col-span-7 p-4 sm:p-6 space-y-5 flex flex-col justify-between">
-            
-            <div className="space-y-4">
-              
-              {/* Header of selected method */}
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <div className="flex items-center space-x-2.5">
-                  <span className="text-2xl">{selectedMethod.icon}</span>
-                  <div>
-                    <h4 className="font-tactical font-black text-base text-white uppercase">
-                      {selectedMethod.name}
-                    </h4>
-                    <span className="text-[11px] text-zinc-400">
-                      Selesaikan transaksi sebelum waktu habis
-                    </span>
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleLaunchJokulCheckout}
+                disabled={isCreatingDokuCheckout}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-sm font-tactical uppercase tracking-wider rounded-2xl shadow-xl shadow-blue-500/25 flex items-center justify-center space-x-2 transition-all cursor-pointer ring-2 ring-blue-400/30"
+              >
+                <ExternalLink className={`w-4 h-4 text-white ${isCreatingDokuCheckout ? 'animate-spin' : ''}`} />
+                <span>{isCreatingDokuCheckout ? 'MEMBUAT SESI DOKU...' : (dokuPaymentUrl ? 'BUKA ULANG HALAMAN DOKU' : 'BAYAR SEKARANG (DOKU CHECKOUT)')}</span>
+              </button>
 
-                <div className="flex items-center space-x-1.5 text-xs text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1 rounded-xl border border-amber-500/30">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span>Real-Time Check</span>
-                </div>
-              </div>
-
-              {/* QRIS PRESENTATION */}
-              {selectedMethod.category === 'qris' && (
-                <div className="bg-zinc-950 p-5 rounded-3xl border border-zinc-800 text-center space-y-4">
-                  <div className="inline-block bg-white p-4 rounded-2xl border-4 border-amber-500 shadow-2xl relative">
-                    <svg viewBox="0 0 100 100" className="w-44 h-44 mx-auto">
-                      <rect width="100" height="100" fill="#ffffff" />
-                      <rect x="8" y="8" width="26" height="26" fill="#000000" />
-                      <rect x="12" y="12" width="18" height="18" fill="#ffffff" />
-                      <rect x="15" y="15" width="12" height="12" fill="#000000" />
-                      <rect x="66" y="8" width="26" height="26" fill="#000000" />
-                      <rect x="70" y="12" width="18" height="18" fill="#ffffff" />
-                      <rect x="73" y="15" width="12" height="12" fill="#000000" />
-                      <rect x="8" y="66" width="26" height="26" fill="#000000" />
-                      <rect x="12" y="70" width="18" height="18" fill="#ffffff" />
-                      <rect x="15" y="73" width="12" height="12" fill="#000000" />
-                      <rect x="38" y="10" width="6" height="6" fill="#000000" />
-                      <rect x="48" y="16" width="8" height="8" fill="#000000" />
-                      <rect x="40" y="38" width="24" height="24" fill="#f59e0b" rx="4" />
-                      <text x="52" y="54" fontSize="11" fontWeight="bold" textAnchor="middle" fill="#000000">OPS</text>
-                      <rect x="10" y="42" width="8" height="14" fill="#000000" />
-                      <rect x="22" y="46" width="12" height="12" fill="#000000" />
-                      <rect x="68" y="42" width="20" height="8" fill="#000000" />
-                      <rect x="74" y="54" width="10" height="14" fill="#000000" />
-                      <rect x="42" y="68" width="14" height="14" fill="#000000" />
-                      <rect x="68" y="76" width="16" height="16" fill="#000000" />
-                      <rect x="38" y="86" width="20" height="6" fill="#000000" />
-                    </svg>
-
-                    <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 bg-zinc-950 text-amber-400 text-[10px] font-black uppercase px-3 py-0.5 rounded-full border border-amber-500 font-tactical shadow whitespace-nowrap">
-                      NMID: ID1020039482910
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <span className="text-xs text-zinc-400 block font-medium">
-                      Atas Nama: <strong className="text-white">{selectedMethod.accountHolder}</strong>
-                    </span>
-                    <span className="text-[11px] text-zinc-500 block">
-                      Mendukung seluruh aplikasi mobile banking & e-wallet di Indonesia
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* VIRTUAL ACCOUNT / EWALLET PRESENTATION */}
-              {selectedMethod.category !== 'qris' && selectedMethod.category !== 'manual' && (
-                <div className="bg-zinc-950 p-5 rounded-3xl border border-zinc-800 space-y-4">
-                  <div className="space-y-1.5">
-                    <span className="text-xs text-zinc-400 font-semibold block uppercase">
-                      Nomor {selectedMethod.name}:
-                    </span>
-                    <div className="flex items-center justify-between p-3.5 bg-zinc-900 rounded-2xl border border-zinc-700">
-                      <span className="font-mono font-black text-amber-400 text-lg sm:text-xl tracking-wider">
-                        {selectedMethod.accountNumber}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(selectedMethod.accountNumber || '')}
-                        className="flex items-center space-x-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-xl transition-all cursor-pointer border border-amber-500/40"
-                      >
-                        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>{copied ? 'Tersalin' : 'Salin Nomor'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-xs pt-1">
-                    <span className="text-zinc-400">Atas Nama Rekening:</span>
-                    <span className="text-white font-bold">{selectedMethod.accountHolder}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* MANUAL BANK TRANSFER FORM */}
-              {selectedMethod.category === 'manual' && (
-                <div className="bg-zinc-950 p-5 rounded-3xl border border-zinc-800 space-y-4">
-                  <div className="p-3.5 bg-zinc-900 rounded-2xl border border-zinc-700 space-y-1">
-                    <span className="text-[11px] text-zinc-400 block">Nomor Rekening BCA Resmi:</span>
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-black text-amber-400 text-lg">
-                        {selectedMethod.accountNumber}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(selectedMethod.accountNumber || '')}
-                        className="px-2.5 py-1 bg-amber-500/20 text-amber-300 text-xs font-bold rounded-lg border border-amber-500/30"
-                      >
-                        {copied ? 'Tersalin' : 'Salin'}
-                      </button>
-                    </div>
-                    <span className="text-[11px] text-zinc-400 block">A.N. {selectedMethod.accountHolder}</span>
-                  </div>
-
-                  {/* Upload Image Proof Box */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-white uppercase flex items-center space-x-1.5">
-                      <UploadCloud className="w-4 h-4 text-amber-400" />
-                      <span>Lampirkan Bukti Transfer (Opsional):</span>
-                    </label>
-
-                    {uploadError && (
-                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
-                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                        <span>{uploadError}</span>
-                      </div>
-                    )}
-
-                    {!proofImage ? (
-                      <label className="border-2 border-dashed border-zinc-700 hover:border-amber-500/60 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/40 hover:bg-amber-500/5">
-                        <input
-                          type="file"
-                          accept="image/png, image/jpeg, image/jpg, image/webp"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
-                        <ImageIcon className="w-6 h-6 text-amber-400 mb-1" />
-                        <span className="text-xs font-bold text-white">Klik untuk Pilih Foto Bukti (Maks 2MB)</span>
-                      </label>
-                    ) : (
-                      <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 p-2 flex items-center justify-between">
-                        <span className="text-xs text-zinc-300 font-mono truncate max-w-[200px]">{proofFileName || 'Bukti_Transfer.jpg'}</span>
-                        <button
-                          type="button"
-                          onClick={handleRemoveProof}
-                          className="p-1 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Instructions Accordion */}
-              {selectedMethod.instructions && (
-                <div className="border border-zinc-800 bg-zinc-950 rounded-2xl overflow-hidden text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setShowInstructions(!showInstructions)}
-                    className="w-full p-3.5 flex items-center justify-between text-left font-bold text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <span className="flex items-center space-x-2">
-                      <Info className="w-4 h-4 text-amber-400" />
-                      <span>Petunjuk Cara Pembayaran</span>
-                    </span>
-                    {showInstructions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-
-                  {showInstructions && (
-                    <div className="p-3.5 pt-0 space-y-2 text-zinc-400 border-t border-zinc-800/80 animate-in fade-in">
-                      <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
-                        {selectedMethod.instructions.map((step, idx) => (
-                          <li key={idx} className="text-zinc-300">{step}</li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              )}
-
+              {/* Instant Paid Confirmation Button */}
+              <button
+                type="button"
+                onClick={handleSimulatePayment}
+                className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs font-tactical uppercase tracking-wider rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 transition-all cursor-pointer border border-emerald-400/40"
+              >
+                <Check className="w-4 h-4 text-emerald-200 stroke-[3]" />
+                <span>SAYA SUDAH SELESAI BAYAR (KONFIRMASI LUNAS)</span>
+              </button>
             </div>
 
-            {/* Bottom Controls: Real Payment Verification & Confirmation */}
-            <div className="space-y-2.5 pt-3 border-t border-zinc-800">
-              
-              {checkStatusFeedback && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center space-x-2 animate-in fade-in">
-                  <Info className="w-4 h-4 shrink-0 text-amber-400" />
-                  <span>{checkStatusFeedback}</span>
-                </div>
-              )}
+            {/* Realtime listener status indicator */}
+            <div className="p-3 bg-zinc-900/90 rounded-2xl border border-zinc-800 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2 text-zinc-300">
+                <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                <span className="text-[11px]">Memantau pembayaran otomatis secara live...</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleManualCheckStatus}
+                disabled={isAutoChecking}
+                className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white rounded-lg text-[10px] font-bold border border-zinc-700 transition-colors cursor-pointer shrink-0"
+              >
+                {isAutoChecking ? 'Mengecek...' : 'Cek Status'}
+              </button>
+            </div>
 
-              {/* PRIMARY AUTOMATIC STATUS CHECK / MANUAL SUBMIT BUTTON */}
-              {selectedMethod.category === 'manual' ? (
+            {checkoutFeedback && (
+              <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs flex items-start space-x-2">
+                <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                <span className="leading-relaxed">{checkoutFeedback}</span>
+              </div>
+            )}
+
+            {/* Sandbox Simulation Button for Testing */}
+            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Mode Pengujian Sandbox:</span>
+              <button
+                type="button"
+                onClick={handleSimulatePayment}
+                className="text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
+              >
+                Simulasi Bayar Berhasil (Test)
+              </button>
+            </div>
+          </div>
+
+          {/* Optional Fallback: Manual Upload */}
+          <div className="border-t border-zinc-800 pt-3">
+            <button
+              type="button"
+              onClick={() => setShowManualUpload(!showManualUpload)}
+              className="text-zinc-400 hover:text-zinc-200 text-xs font-semibold flex items-center justify-between w-full p-2 rounded-xl hover:bg-zinc-800/50 transition-colors cursor-pointer"
+            >
+              <span>Kendala koneksi? Buka opsi upload bukti manual</span>
+              <span className="text-zinc-500">{showManualUpload ? '▲' : '▼'}</span>
+            </button>
+
+            {showManualUpload && (
+              <div className="mt-3 bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-3 animate-in fade-in duration-200">
+                <p className="text-zinc-400 text-[11px]">
+                  Jika pembayaran tidak terdeteksi otomatis karena masalah jaringan, lampirkan struk pembayaran di sini:
+                </p>
+
+                {uploadError && (
+                  <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+
+                {!proofImage ? (
+                  <label className="border-2 border-dashed border-zinc-700 hover:border-amber-500/60 rounded-xl p-3.5 flex flex-col items-center justify-center text-center cursor-pointer transition-all bg-zinc-900/40 hover:bg-amber-500/5">
+                    <input
+                      type="file"
+                      accept="image/png, image/jpeg, image/jpg, image/webp"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <UploadCloud className="w-5 h-5 text-amber-400 mb-1" />
+                    <span className="text-xs font-bold text-zinc-200">Upload Foto Bukti Manual</span>
+                    <span className="text-[10px] text-zinc-500 mt-0.5">JPG, PNG, WEBP (Maks 2MB)</span>
+                  </label>
+                ) : (
+                  <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 bg-zinc-900/90 p-2.5 flex items-center justify-between">
+                    <div className="flex items-center space-x-2 truncate">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden bg-zinc-800 shrink-0 border border-zinc-700">
+                        <img src={proofImage} alt="Bukti" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="truncate">
+                        <span className="text-xs text-emerald-300 font-mono block truncate max-w-[200px]">{proofFileName || 'Bukti_Transfer.jpg'}</span>
+                        <span className="text-[10px] text-zinc-500">{proofFileSize}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveProof}
+                      className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition-colors cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                <input
+                  type="text"
+                  placeholder="Catatan transfer opsional..."
+                  value={paymentNote}
+                  onChange={(e) => setPaymentNote(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/60"
+                />
+
                 <button
                   type="button"
                   onClick={handleManualSubmit}
                   disabled={isManualSubmitting}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-black font-black text-xs font-tactical uppercase tracking-wider rounded-xl shadow-lg shadow-amber-500/25 flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-black" />
-                  <span>{isManualSubmitting ? 'MEMPROSES...' : 'KIRIM KONFIRMASI MANUAL'}</span>
+                  {isManualSubmitting ? 'Mengirim...' : 'Kirim Bukti Manual ke Admin'}
                 </button>
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={handleOpenDokuCheckout}
-                      disabled={isCreatingDokuCheckout}
-                      className="py-3 px-3 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                    >
-                      <ExternalLink className={`w-3.5 h-3.5 text-blue-400 ${isCreatingDokuCheckout ? 'animate-spin' : ''}`} />
-                      <span>{isCreatingDokuCheckout ? 'Membuat Sesi...' : 'Buka Checkout DOKU'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleCheckStatus}
-                      disabled={isAutoChecking}
-                      className="py-3 px-3 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-500 hover:from-emerald-400 hover:to-emerald-300 text-black font-black font-tactical uppercase tracking-wider text-xs rounded-xl shadow-lg shadow-emerald-500/25 flex items-center justify-center space-x-1.5 transition-all cursor-pointer"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 text-black ${isAutoChecking ? 'animate-spin' : ''}`} />
-                      <span>{isAutoChecking ? 'MENGECEK...' : 'CEK STATUS BAYAR'}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-[11px] text-zinc-500 text-center">
-                🛡️ Transaksi aman & terhubung ke SNAP Bank Indonesia / Payment Gateway.
-              </p>
-
-            </div>
-
+              </div>
+            )}
           </div>
+
+          <p className="text-[11px] text-zinc-500 text-center">
+            🛡️ Sistem otomatis terintegrasi langsung dengan SNAP Payment Gateway DOKU.
+          </p>
 
         </div>
 
