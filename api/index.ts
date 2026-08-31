@@ -4,6 +4,8 @@ import crypto from "crypto";
 const app = express();
 app.use(express.json());
 
+const router = express.Router();
+
 // DOKU Signature Helper
 function generateDokuSignature({
   clientId,
@@ -37,12 +39,12 @@ const dokuPaidInvoices = new Map<string, {
 }>();
 
 // API Health Check
-app.get("/api/health", (req, res) => {
+router.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // API: Create DOKU Checkout Payment URL
-app.post("/api/payment/doku/checkout", async (req, res) => {
+router.post("/payment/doku/checkout", async (req, res) => {
   try {
     const {
       isProduction,
@@ -223,7 +225,7 @@ app.post("/api/payment/doku/checkout", async (req, res) => {
 });
 
 // API: Check status of an invoice
-app.get("/api/payment/doku/status/:invoiceNumber", async (req, res) => {
+router.get("/payment/doku/status/:invoiceNumber", async (req, res) => {
   const { invoiceNumber } = req.params;
   
   let cached = dokuPaidInvoices.get(invoiceNumber);
@@ -259,7 +261,7 @@ app.get("/api/payment/doku/status/:invoiceNumber", async (req, res) => {
 });
 
 // API: Simulate success
-app.post("/api/payment/doku/simulate-success", (req, res) => {
+router.post("/payment/doku/simulate-success", (req, res) => {
   const { invoiceNumber, amount } = req.body || {};
   if (!invoiceNumber) {
     return res.status(400).json({ success: false, message: "invoiceNumber is required" });
@@ -284,7 +286,7 @@ app.post("/api/payment/doku/simulate-success", (req, res) => {
 });
 
 // Webhook / Notification Handler from DOKU
-app.post("/api/payment/callback", (req, res) => {
+router.post("/payment/callback", (req, res) => {
   try {
     const body = req.body || {};
     const rawInvoice = body.order?.invoice_number || body.invoice_number || body.orderId || body.order_id;
@@ -320,5 +322,8 @@ app.post("/api/payment/callback", (req, res) => {
     return res.status(200).json({ status: "SUCCESS", note: "Error logged" });
   }
 });
+
+app.use("/api", router);
+app.use("/", router);
 
 export default app;
