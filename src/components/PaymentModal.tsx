@@ -76,18 +76,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     if (isCompletedRef.current) return;
     isCompletedRef.current = true;
 
-    // Clean up any lingering Jokul JS modal overlays/iframes from the DOM
-    try {
-      const jokulElements = document.querySelectorAll(
-        '[id*="jokul"], [class*="jokul"], [id*="doku"], iframe[src*="doku"], .jokul-checkout-container'
-      );
-      jokulElements.forEach(el => {
-        try {
-          el.remove();
-        } catch {}
-      });
-    } catch {}
-
     try {
       confetti({
         particleCount: 100,
@@ -172,15 +160,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       try {
         if (!event.data) return;
         const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-        const eventStr = JSON.stringify(data).toLowerCase();
-        
-        if (
-          data.status === 'SUCCESS' || 
-          data.paymentStatus === 'SUCCESS' || 
-          data.event === 'PAYMENT_SUCCESS' ||
-          eventStr.includes('success') ||
-          eventStr.includes('paid')
-        ) {
+        if (data.status === 'SUCCESS' || data.paymentStatus === 'SUCCESS' || data.event === 'PAYMENT_SUCCESS') {
           triggerPaymentSuccess({ channel: data.channel || 'DOKU_CHECKOUT' });
         }
       } catch {}
@@ -216,7 +196,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setTimeout(() => setCopiedInvoice(false), 2000);
   };
 
-  // Launch DOKU Jokul Checkout (Using authorized Jokul in-page lightbox overlay)
+  // Launch DOKU Jokul Checkout (Embedded in modal without opening new tab)
   const handleLaunchJokulCheckout = async () => {
     setIsCreatingDokuCheckout(true);
     setCheckoutFeedback(null);
@@ -226,14 +206,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isProduction: settings?.paymentGatewayMode === 'production',
+          clientId: settings?.dokuClientId,
+          secretKey: settings?.dokuClientSecret || settings?.dokuApiKey,
           orderNumber: order.invoiceNumber,
           amount: order.totalPrice,
           customerName: order.customerName,
-          customerEmail: order.customerEmail || 'customer@breakoutops.com',
-          customerPhone: order.customerPhone || '081234567890',
+          customerEmail: 'customer@breakoutops.com',
+          customerPhone: order.customerWhatsApp || '081234567890',
           productDetails: [
             {
-              name: `${order.gameTitle || 'Jasa'} - ${order.serviceName || 'Topup'}`,
+              name: `${order.packageName || 'Jasa Joki'} (${order.serviceName || 'Arena Breakout'})`,
               price: order.totalPrice,
               quantity: 1
             }
@@ -242,46 +224,33 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       });
 
       const resData = await response.json();
-      if (resData.success && resData.paymentUrl) {
-        const paymentUrl = resData.paymentUrl;
-        setDokuPaymentUrl(paymentUrl);
+      if (resData.success) {
+        if (resData.paymentUrl) {
+          const paymentUrl = resData.paymentUrl;
+          setDokuPaymentUrl(paymentUrl);
 
-        // Ensure Jokul script is loaded and trigger the official in-page lightbox popup
-        const triggerJokul = () => {
-          if (typeof (window as any).loadJokulCheckout === 'function') {
+          // 1. First priority: load Jokul Checkout official popup directly inside current page
+          if (typeof window.loadJokulCheckout === 'function') {
             try {
-              (window as any).loadJokulCheckout(paymentUrl);
-              setCheckoutFeedback('⚡ Sesi pembayaran DOKU telah aktif di layar. Setelah Anda membayar, sistem otomatis mendeteksi status Lunas.');
-              return true;
+              window.loadJokulCheckout(paymentUrl);
+              setCheckoutFeedback('⚡ Sesi pembayaran DOKU aktif. Selesaikan pembayaran di popup atau frame di bawah.');
+              return;
             } catch (e) {
-              console.warn('loadJokulCheckout error:', e);
+              console.warn('loadJokulCheckout popup failed, using in-modal frame:', e);
             }
           }
-          return false;
-        };
 
-        if (!triggerJokul()) {
-          // Dynamically load SDK if not ready
-          const script = document.createElement('script');
-          script.src = settings?.paymentGatewayMode === 'production'
-            ? 'https://jokul.doku.com/jokul-checkout-js/v1/jokul-checkout-1.0.0.js'
-            : 'https://sandbox.doku.com/jokul-checkout-js/v1/jokul-checkout-1.0.0.js';
-          script.onload = () => {
-            if (!triggerJokul()) {
-              window.open(paymentUrl, '_blank', 'noopener,noreferrer');
-            }
-          };
-          script.onerror = () => {
-            window.open(paymentUrl, '_blank', 'noopener,noreferrer');
-          };
-          document.body.appendChild(script);
+          setCheckoutFeedback('⚡ Sesi pembayaran DOKU siap. Selesaikan transaksi di frame di bawah.');
+        } else {
+          // Sandbox simulation or fallback mode
+          setCheckoutFeedback('⚡ Mode Sandbox DOKU Aktif: Anda dapat memindai QRIS simulasi atau langsung klik "Konfirmasi Lunas" di bawah.');
         }
       } else {
         setCheckoutFeedback(`⚠️ ${resData.message || 'Gagal membuat sesi pembayaran DOKU.'}`);
       }
     } catch (err: any) {
       console.error('DOKU Checkout error:', err);
-      setCheckoutFeedback('⚠️ Gagal terhubung ke server pembayaran. Silakan coba kembali atau hubungi Admin.');
+      setCheckoutFeedback('⚠️ Terjadi kendala jaringan saat menghubungkan ke DOKU. Anda dapat menggunakan tombol konfirmasi simulasi atau upload bukti manual.');
     } finally {
       setIsCreatingDokuCheckout(false);
     }
@@ -736,50 +705,50 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </button>
             </div>
 
-            {checkoutFeedback && (
+            {/* Embedded In-Page DOKU Payment Frame */}
+            {dokuPaymentUrl && (
+              <div className="space-y-2 pt-1 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between text-xs text-zinc-400 pb-1">
+                  <span className="font-bold text-zinc-200 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    Portal Pembayaran DOKU (Langsung di Web)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setDokuPaymentUrl(null)}
+                    className="text-zinc-500 hover:text-zinc-300 text-[11px] underline cursor-pointer"
+                  >
+                    Tutup Frame
+                  </button>
+                </div>
+                <div className="w-full h-[520px] rounded-2xl overflow-hidden border border-blue-500/40 bg-zinc-900 shadow-2xl relative">
+                  <iframe
+                    src={dokuPaymentUrl}
+                    title="DOKU Checkout Gateway"
+                    className="w-full h-full border-0"
+                    allow="payment"
+                  />
+                </div>
+              </div>
+            )}
+
+            {checkoutFeedback && !dokuPaymentUrl && (
               <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs flex items-start space-x-2">
                 <Info className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
                 <span className="leading-relaxed">{checkoutFeedback}</span>
               </div>
             )}
 
-            {/* Sandbox Informational Guide & Quick Simulation Card */}
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 space-y-3">
-              <div className="flex items-start space-x-2.5">
-                <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <h5 className="font-bold text-amber-300 text-xs uppercase tracking-wide">
-                    Mengapa Status DOKU Masih "Menunggu Pembayaran"?
-                  </h5>
-                  <p className="text-[11px] text-zinc-300 leading-relaxed">
-                    Saat ini gateway berada di mode <strong>DOKU Sandbox (Uji Coba)</strong>. Di mode Sandbox, DOKU tidak memotong saldo bank sungguhan, sehingga DOKU akan menunggu sinyal transfer.
-                  </p>
-                  <p className="text-[11px] text-zinc-400 leading-relaxed">
-                    • <strong>Untuk Pengujian Saat Ini:</strong> Klik tombol hijau <strong>"KONFIRMASI SELESAI BAYAR"</strong> di bawah. Sistem akan seketika menandai pesanan ini <strong>Lunas</strong> dan mengarahkan ke Live Tracking.<br/>
-                    • <strong>Saat Mode Production (Live):</strong> DOKU akan otomatis berubah lunas detik itu juga begitu pelanggan asli transfer via Mobile Banking / QRIS.
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t border-amber-500/20 flex flex-wrap items-center justify-between gap-2">
-                <a
-                  href="https://sandbox.doku.com/simulator"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] text-blue-400 hover:text-blue-300 underline flex items-center gap-1 font-medium"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  <span>Buka DOKU Virtual Account Simulator</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={handleSimulatePayment}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs font-tactical rounded-xl transition-all cursor-pointer flex items-center gap-1"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>SIMULASI LUNAS SEKARANG (TEST)</span>
-                </button>
-              </div>
+            {/* Sandbox Simulation Button for Testing */}
+            <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px] text-zinc-500">
+              <span>Mode Pengujian Sandbox:</span>
+              <button
+                type="button"
+                onClick={handleSimulatePayment}
+                className="text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
+              >
+                Simulasi Bayar Berhasil (Test)
+              </button>
             </div>
           </div>
 
