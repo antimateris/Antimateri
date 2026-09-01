@@ -427,7 +427,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
 
                       return (
                         <tr 
-                          key={cust.id}
+                          key={`spender-${cust.id || cust.username}-${idx}`}
                           className={`hover:bg-slate-50 transition-colors ${
                             isCurrent ? 'bg-amber-50/70 border-l-4 border-amber-500' : ''
                           }`}
@@ -530,7 +530,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
 
                       return (
                         <tr 
-                          key={cust.id}
+                          key={`grinder-${cust.id || cust.username}-${idx}`}
                           className={`hover:bg-slate-50 transition-colors ${
                             isCurrent ? 'bg-amber-50/70' : ''
                           }`}
@@ -588,7 +588,7 @@ export const LeaderboardPage: React.FC<LeaderboardPageProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {topWorkers.map((worker, idx) => (
                 <div 
-                  key={worker.name}
+                  key={`top-worker-${worker.name}-${idx}`}
                   className="p-5 rounded-3xl bg-white border border-slate-200 hover:border-amber-400 transition-all space-y-4 shadow-sm relative overflow-hidden"
                 >
                   <div className="flex items-start justify-between">

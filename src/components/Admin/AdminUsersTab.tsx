@@ -297,14 +297,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
 
       {/* Admin List Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredAdmins.map((adm) => {
+        {filteredAdmins.map((adm, idx) => {
           const isMe = adm.id === currentUser.id;
           const currentPassword = adm.password || (adm.role === 'superadmin' ? 'superadmin123' : 'admin123');
           const isPasswordVisible = !!unmaskedPasswords[adm.id];
 
           return (
             <div
-              key={adm.id}
+              key={`admin-user-${adm.id || adm.username}-${idx}`}
               className={`bg-zinc-900/80 border rounded-2xl p-5 shadow-xl space-y-4 relative flex flex-col justify-between ${
                 adm.role === 'superadmin' 
                   ? 'border-amber-500/40 bg-zinc-900/95 ring-1 ring-amber-500/20' 

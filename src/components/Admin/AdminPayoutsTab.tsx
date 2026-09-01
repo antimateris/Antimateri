@@ -367,8 +367,8 @@ _Terima kasih atas dedikasi dan kerja kerasnya menjaga winrate & kepuasan pelang
               className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:border-amber-500"
             >
               <option value="all">Semua Tim Worker</option>
-              {admins.map((adm) => (
-                <option key={adm.id} value={adm.id}>
+              {admins.map((adm, idx) => (
+                <option key={`adm-opt-${adm.id || adm.username}-${idx}`} value={adm.id}>
                   {adm.name} ({adm.role === 'superadmin' ? 'CEO' : 'Worker'})
                 </option>
               ))}
@@ -684,8 +684,8 @@ _Terima kasih atas dedikasi dan kerja kerasnya menjaga winrate & kepuasan pelang
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:border-amber-500"
                 >
                   <option value="">-- Pilih Worker / Joki --</option>
-                  {workerList.map((worker) => (
-                    <option key={worker.id} value={worker.id}>
+                  {workerList.map((worker, idx) => (
+                    <option key={`worker-opt-${worker.id || worker.username}-${idx}`} value={worker.id}>
                       {worker.name} (@{worker.username}) - {worker.role === 'superadmin' ? 'CEO' : 'Worker'} {worker.bankName ? `[${worker.bankName} - ${worker.bankAccountNumber}]` : ''}
                     </option>
                   ))}

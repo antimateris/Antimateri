@@ -90,7 +90,7 @@ router.post("/payment/doku/checkout", async (req, res) => {
     const rawOrderNumber = String(orderNumber || "INV").trim();
     const dokuInvoiceNumber = rawOrderNumber.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 32);
 
-    const callbackUrl = `${originUrl}/?invoice_number=${encodeURIComponent(rawOrderNumber)}&status=success&from_doku=1`;
+    const callbackUrl = `${originUrl}/?invoice_number=${encodeURIComponent(rawOrderNumber)}&from_doku=1`;
     const callbackUrlCancel = `${originUrl}/?invoice_number=${encodeURIComponent(rawOrderNumber)}&status=cancel&from_doku=1`;
 
     const totalAmount = Math.max(1000, Math.round(Number(amount) || 10000));

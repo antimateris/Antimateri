@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Package, 
   TrendingUp, 
@@ -93,9 +93,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onUpdatePayout,
   onDeletePayout,
 }) => {
+  const isSuperadmin = currentUser.role === 'superadmin';
+
   const [activeAdminTab, setActiveAdminTab] = useState<
     'orders' | 'payouts' | 'salary' | 'analytics' | 'customers' | 'walogs' | 'prices' | 'users' | 'settings'
-  >('orders');
+  >(isSuperadmin ? 'orders' : 'salary');
+
+  // Fallback if regular admin somehow had a superadmin-only tab active
+  useEffect(() => {
+    if (!isSuperadmin && activeAdminTab !== 'salary') {
+      setActiveAdminTab('salary');
+    }
+  }, [isSuperadmin, activeAdminTab]);
 
   // Self Profile & Password Modal
   const [isSelfEditOpen, setIsSelfEditOpen] = useState<boolean>(false);
@@ -109,8 +118,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [selfErrorMsg, setSelfErrorMsg] = useState<string | null>(null);
   const [selfSuccessMsg, setSelfSuccessMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const isSuperadmin = currentUser.role === 'superadmin';
 
   const handleOpenSelfEdit = () => {
     setSelfName(currentUser.name);
@@ -187,67 +194,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       (p.status === 'pending' || p.status === 'processing')
   ).length;
 
-  const menuItems = [
+  const activeOrdersCount = orders.filter((o) => o.orderStatus === 'in_progress' || o.orderStatus === 'queued').length;
+  const needVerifyCount = orders.filter((o) => o.paymentStatus === 'verifying' || o.orderStatus === 'verifying').length;
+
+  // Hub categories definition for Superadmin
+  type HubId = 'orders' | 'finance' | 'people' | 'system';
+
+  const getHubForTab = (tab: typeof activeAdminTab): HubId => {
+    if (tab === 'orders') return 'orders';
+    if (tab === 'payouts' || tab === 'salary' || tab === 'analytics') return 'finance';
+    if (tab === 'customers' || tab === 'users') return 'people';
+    return 'system';
+  };
+
+  const currentHub = getHubForTab(activeAdminTab);
+
+  const handleSelectHub = (hub: HubId) => {
+    if (hub === 'orders') setActiveAdminTab('orders');
+    else if (hub === 'finance') setActiveAdminTab('payouts');
+    else if (hub === 'people') setActiveAdminTab('customers');
+    else if (hub === 'system') setActiveAdminTab('settings');
+  };
+
+  const hubDefinitions = [
     {
-      id: 'orders',
-      label: 'Manajemen Pesanan',
+      id: 'orders' as HubId,
+      label: 'Pesanan',
+      sublabel: 'Manajemen Order Joki',
       icon: Package,
-      badge: orders.length,
-      superOnly: false,
+      badge: needVerifyCount > 0 ? `${needVerifyCount} verify` : orders.length,
+      badgeColor: needVerifyCount > 0 ? 'bg-amber-500 text-black font-bold' : 'bg-zinc-800 text-zinc-300',
     },
     {
-      id: 'payouts',
-      label: 'Status Gaji Worker (CEO)',
-      icon: CreditCard,
-      badge: isSuperadmin ? pendingPayoutsCount : undefined,
-      superOnly: true,
-    },
-    {
-      id: 'salary',
-      label: isSuperadmin ? 'Gaji & Pendapatan Saya' : 'Gaji & Evaluasi Saya',
+      id: 'finance' as HubId,
+      label: 'Keuangan & Gaji',
+      sublabel: 'Payout, Omset & Komisi',
       icon: DollarSign,
-      badge: !isSuperadmin && myPendingPayoutsCount > 0 ? myPendingPayoutsCount : undefined,
-      superOnly: false,
+      badge: pendingPayoutsCount > 0 ? `${pendingPayoutsCount} pending` : undefined,
+      badgeColor: 'bg-emerald-500 text-black font-bold',
+      subTabs: [
+        { id: 'payouts', label: 'Kelola Gaji Worker (CEO)', icon: CreditCard, badge: pendingPayoutsCount || undefined },
+        { id: 'salary', label: 'Gaji & Saldo Saya', icon: DollarSign },
+        { id: 'analytics', label: 'Analitik Bulanan & Omset', icon: TrendingUp },
+      ]
     },
     {
-      id: 'customers',
-      label: 'Data Pelanggan & Member',
+      id: 'people' as HubId,
+      label: 'Pelanggan & Tim',
+      sublabel: 'Database Member & Admin',
       icon: Users,
-      badge: isSuperadmin ? customers.length : undefined,
-      superOnly: true,
+      badge: customers.length + admins.length,
+      badgeColor: 'bg-zinc-800 text-zinc-300',
+      subTabs: [
+        { id: 'customers', label: 'Data Pelanggan & Member', icon: Users, badge: customers.length },
+        { id: 'users', label: 'Manajemen Tim Admin', icon: ShieldCheck, badge: admins.length },
+      ]
     },
     {
-      id: 'analytics',
-      label: 'Analitik Bulanan & Omset',
-      icon: TrendingUp,
-      superOnly: false,
-    },
-    {
-      id: 'walogs',
-      label: 'Log Notifikasi WhatsApp',
-      icon: MessageCircle,
-      badge: waLogs.length,
-      superOnly: false,
-    },
-    {
-      id: 'prices',
-      label: 'Atur Harga Joki',
-      icon: Tag,
-      superOnly: true,
-    },
-    {
-      id: 'users',
-      label: 'Manajemen Tim Admin',
-      icon: ShieldCheck,
-      badge: admins.length,
-      superOnly: true,
-    },
-    {
-      id: 'settings',
-      label: 'Pengaturan Sistem & Gateway',
+      id: 'system' as HubId,
+      label: 'Sistem & Gateway',
+      sublabel: 'Setelan DOKU, Harga & WA',
       icon: Settings,
-      superOnly: true,
-    },
+      subTabs: [
+        { id: 'settings', label: 'Pengaturan Gateway & Sistem', icon: Settings },
+        { id: 'prices', label: 'Atur Harga Joki', icon: Tag },
+        { id: 'walogs', label: 'Log WhatsApp', icon: MessageCircle, badge: waLogs.length },
+      ]
+    }
   ];
 
   return (
@@ -265,7 +278,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 className="flex items-center space-x-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>Lihat Web Pelanggan</span>
+                <span className="hidden sm:inline">Kembali ke</span>
+                <span>Web Pelanggan</span>
               </button>
 
               <div className="hidden sm:block h-5 w-px bg-zinc-700" />
@@ -274,8 +288,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <span className="font-tactical text-xl font-bold tracking-wider text-white">
                   BREAKOUT<span className="text-amber-400">OPS</span>
                 </span>
-                <span className="text-xs uppercase font-extrabold px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-amber-400">
-                  {isSuperadmin ? 'SUPERADMIN CONSOLE' : 'ADMIN CONSOLE'}
+                <span className={`text-[11px] uppercase font-extrabold px-2.5 py-0.5 rounded-full border ${
+                  isSuperadmin 
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
+                    : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                }`}>
+                  {isSuperadmin ? 'SUPERADMIN' : 'WORKER'}
                 </span>
               </div>
             </div>
@@ -326,59 +344,114 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
       </div>
 
-      {/* Role Notice Banner */}
-      {!isSuperadmin && (
-        <div className="bg-blue-950/40 border-b border-blue-500/20 py-2 px-4 text-center text-xs text-blue-300">
-          ℹ️ Anda login sebagai <strong>Admin Biasa</strong>. Anda memiliki akses untuk memantau pesanan dan memperbarui progres pengerjaan akun. Menu <strong>Data Pelanggan & Member</strong>, harga, tim admin, dan setelan sistem hanya dapat diakses khusus oleh <strong>Superadmin</strong>.
-        </div>
-      )}
-
       {/* Main Content Area */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         
-        {/* Navigation Tabs Bar */}
-        <div className="flex flex-wrap gap-2 mb-8 bg-zinc-900/80 p-2 rounded-2xl border border-zinc-800">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isBlocked = item.superOnly && !isSuperadmin;
-            const isActive = activeAdminTab === item.id;
+        {/* SUPERADMIN: Streamlined Categorized Command Center Navigation */}
+        {isSuperadmin ? (
+          <div className="mb-6 space-y-3">
+            {/* Primary Hub Bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-zinc-900/90 p-2 rounded-2xl border border-zinc-800 shadow-lg">
+              {hubDefinitions.map((hub) => {
+                const Icon = hub.icon;
+                const isSelected = currentHub === hub.id;
 
-            return (
-              <button
-                key={item.id}
-                id={`admin-tab-${item.id}`}
-                onClick={() => {
-                  if (isBlocked) {
-                    alert('Menu ini terkunci khusus level akun Superadmin!');
-                    return;
-                  }
-                  setActiveAdminTab(item.id as any);
-                }}
-                className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20 font-tactical text-sm'
-                    : isBlocked
-                    ? 'text-zinc-600 bg-zinc-950/40 opacity-60 cursor-not-allowed'
-                    : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-                {item.badge !== undefined && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-sans ${
-                    isActive ? 'bg-black/20 text-black font-extrabold' : 'bg-zinc-800 text-zinc-400'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-                {isBlocked && <Lock className="w-3 h-3 text-zinc-600 ml-1" />}
-              </button>
-            );
-          })}
-        </div>
+                return (
+                  <button
+                    key={hub.id}
+                    id={`hub-tab-${hub.id}`}
+                    onClick={() => handleSelectHub(hub.id)}
+                    className={`flex items-center justify-between p-3 rounded-xl transition-all text-left cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-500 text-black shadow-md shadow-amber-500/20 font-tactical'
+                        : 'bg-zinc-950/40 text-zinc-300 hover:bg-zinc-800 hover:text-white border border-zinc-800/50'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2.5 min-w-0">
+                      <div className={`p-1.5 rounded-lg shrink-0 ${
+                        isSelected ? 'bg-black/20 text-black' : 'bg-zinc-800 text-amber-400'
+                      }`}>
+                        <Icon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs sm:text-sm font-bold truncate">{hub.label}</div>
+                        <div className={`text-[10px] truncate hidden sm:block ${
+                          isSelected ? 'text-black/75 font-sans font-medium' : 'text-zinc-500'
+                        }`}>
+                          {hub.sublabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    {hub.badge !== undefined && (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono shrink-0 ml-1 ${
+                        isSelected ? 'bg-black text-amber-400 font-bold' : hub.badgeColor
+                      }`}>
+                        {hub.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Secondary Sub-Tabs Pill Bar (if hub has multiple subtabs) */}
+            {hubDefinitions.find((h) => h.id === currentHub)?.subTabs && (
+              <div className="flex flex-wrap items-center gap-1.5 bg-zinc-900/50 p-1.5 rounded-xl border border-zinc-800/80 animate-in fade-in duration-150">
+                <span className="text-[11px] font-semibold text-zinc-400 px-2.5 py-1 uppercase tracking-wider">
+                  Menu {hubDefinitions.find((h) => h.id === currentHub)?.label}:
+                </span>
+                {hubDefinitions
+                  .find((h) => h.id === currentHub)
+                  ?.subTabs?.map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isSubActive = activeAdminTab === sub.id;
+
+                    return (
+                      <button
+                        key={sub.id}
+                        id={`admin-subtab-${sub.id}`}
+                        onClick={() => setActiveAdminTab(sub.id as any)}
+                        className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSubActive
+                            ? 'bg-amber-400/15 border border-amber-400/40 text-amber-300 shadow-sm'
+                            : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                        }`}
+                      >
+                        <SubIcon className="w-3.5 h-3.5" />
+                        <span>{sub.label}</span>
+                        {sub.badge !== undefined && (
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-sans ${
+                            isSubActive ? 'bg-amber-400 text-black font-bold' : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {sub.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* WORKER VIEW: Single Direct Clean Header */
+          <div className="mb-6 bg-zinc-900/80 p-3 rounded-2xl border border-zinc-800 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="w-5 h-5 text-amber-400" />
+              <span className="text-sm font-bold text-white font-tactical">
+                Gaji & Evaluasi Saldo Worker
+              </span>
+            </div>
+            {myPendingPayoutsCount > 0 && (
+              <span className="text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                {myPendingPayoutsCount} Permohonan Payout Diproses
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Tab Views */}
-        {activeAdminTab === 'orders' && (
+        {activeAdminTab === 'orders' && isSuperadmin && (
           <AdminOrdersTab
             orders={orders}
             currentUser={currentUser}
@@ -420,11 +493,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           />
         )}
 
-        {activeAdminTab === 'analytics' && (
+        {activeAdminTab === 'analytics' && isSuperadmin && (
           <AdminAnalyticsTab orders={orders} />
         )}
 
-        {activeAdminTab === 'walogs' && (
+        {activeAdminTab === 'walogs' && isSuperadmin && (
           <AdminWaLogsTab logs={waLogs} />
         )}
 

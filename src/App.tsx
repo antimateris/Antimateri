@@ -262,63 +262,80 @@ export default function App() {
     };
   }, []);
 
-  // Detect DOKU Return URL parameters (?invoice_number=...&status=success)
+  // Detect DOKU Return URL parameters (?invoice_number=...&from_doku=1)
   useEffect(() => {
-    try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const rawInvoice = urlParams.get('invoice_number') || urlParams.get('invoice') || urlParams.get('order_id') || urlParams.get('orderNumber');
-      const status = urlParams.get('status') || urlParams.get('payment_status') || urlParams.get('status_type') || urlParams.get('result');
+    const handleDokuReturn = async () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const rawInvoice = urlParams.get('invoice_number') || urlParams.get('invoice') || urlParams.get('order_id') || urlParams.get('orderNumber');
+        const status = urlParams.get('status') || urlParams.get('payment_status') || urlParams.get('status_type') || urlParams.get('result');
+        const fromDoku = urlParams.get('from_doku') || (window.opener ? '1' : null);
 
-      const fromDoku = urlParams.get('from_doku') || (window.opener ? '1' : null);
+        if (!rawInvoice) return;
 
-      if (rawInvoice) {
-        const cleanTarget = rawInvoice.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-        console.log(`[DOKU Return] Detected return from DOKU for invoice: ${rawInvoice}, status: ${status}`);
+        const isExplicitCancel = status && (status.toLowerCase() === 'cancel' || status.toLowerCase() === 'failed');
 
-        const isNotFailed = !status || (status.toLowerCase() !== 'failed' && status.toLowerCase() !== 'cancel');
-
-        // 1. Cross-tab & opener broadcast
-        if (isNotFailed) {
+        // If this window is a child popup/tab opened by the app, notify opener and close cleanly
+        if (fromDoku && (window.opener || window.name === 'doku_checkout_window')) {
           try {
-            const channel = new BroadcastChannel('breakoutops_doku_channel');
-            channel.postMessage({
-              type: 'DOKU_PAYMENT_SUCCESS',
-              invoiceNumber: rawInvoice,
-              channel: 'DOKU Checkout'
-            });
-            setTimeout(() => channel.close(), 1000);
-          } catch {}
-
-          try {
-            localStorage.setItem(
-              'breakoutops_doku_completed',
-              JSON.stringify({ invoiceNumber: rawInvoice, time: Date.now() })
-            );
-          } catch {}
-
-          if (window.opener) {
-            try {
+            if (window.opener) {
               window.opener.postMessage(
                 {
-                  type: 'DOKU_PAYMENT_SUCCESS',
+                  type: 'DOKU_WINDOW_RETURN',
                   invoiceNumber: rawInvoice,
-                  channel: 'DOKU Checkout'
+                  status: status || 'CHECK_STATUS'
                 },
                 '*'
               );
               window.opener.focus();
-            } catch {}
-          }
+            }
+          } catch {}
 
-          // If this window is a child popup / tab opened from the main app, close it automatically!
-          if (fromDoku || window.opener || window.name === 'doku_checkout_window') {
-            setTimeout(() => {
-              try {
-                window.close();
-              } catch {}
-            }, 600);
-          }
+          setTimeout(() => {
+            try { window.close(); } catch {}
+          }, 600);
+          return;
         }
+
+        // Clean up URL query parameters from browser address bar
+        try {
+          const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+          window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+        } catch {}
+
+        if (isExplicitCancel) {
+          console.log(`[DOKU Return] Customer cancelled payment for invoice: ${rawInvoice}`);
+          return;
+        }
+
+        // Verify with actual DOKU backend status check API
+        console.log(`[DOKU Return] Checking real payment status for invoice: ${rawInvoice}`);
+        let isActuallyPaid = false;
+        let dokuChannelName = 'DOKU Gateway';
+        let verifiedPaidAt = new Date().toISOString();
+
+        try {
+          const checkRes = await fetch(`/api/payment/doku/status/${encodeURIComponent(rawInvoice)}`);
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (checkData.success && checkData.paid && checkData.status === 'SUCCESS') {
+              isActuallyPaid = true;
+              dokuChannelName = checkData.channel || 'DOKU Checkout';
+              verifiedPaidAt = checkData.paidAt || new Date().toISOString();
+            }
+          }
+        } catch (err) {
+          console.warn('[DOKU Return] Error checking payment status:', err);
+        }
+
+        const cleanTarget = rawInvoice.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
+        // Helper to check if order matches invoice
+        const isMatch = (ord: Order) => {
+          if (!ord || !ord.invoiceNumber) return false;
+          const ordClean = ord.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+          return ord.invoiceNumber === rawInvoice || ordClean === cleanTarget || (cleanTarget.length >= 6 && ordClean.includes(cleanTarget));
+        };
 
         // Retrieve known orders from local storage as immediate cache
         let cachedActiveOrder: Order | null = null;
@@ -330,83 +347,88 @@ export default function App() {
           if (listStr) cachedOrdersList = JSON.parse(listStr);
         } catch {}
 
-        // Mark invoice as paid in backend
-        if (isNotFailed) {
-          fetch('/api/payment/doku/simulate-success', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ invoiceNumber: rawInvoice, amount: 0 })
-          }).catch(() => {});
-        }
+        if (isActuallyPaid) {
+          // Broadcast payment success to other tabs/channels
+          try {
+            const channel = new BroadcastChannel('breakoutops_doku_channel');
+            channel.postMessage({
+              type: 'DOKU_PAYMENT_SUCCESS',
+              invoiceNumber: rawInvoice,
+              channel: dokuChannelName
+            });
+            setTimeout(() => channel.close(), 1000);
+          } catch {}
 
-        // Helper to check if order matches invoice
-        const isMatch = (ord: Order) => {
-          if (!ord || !ord.invoiceNumber) return false;
-          const ordClean = ord.invoiceNumber.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-          return ord.invoiceNumber === rawInvoice || ordClean === cleanTarget || (cleanTarget.length >= 6 && ordClean.includes(cleanTarget));
-        };
+          try {
+            localStorage.setItem(
+              'breakoutops_doku_completed',
+              JSON.stringify({ invoiceNumber: rawInvoice, time: Date.now() })
+            );
+          } catch {}
 
-        setOrders((prevOrders) => {
-          let updatedList = [...prevOrders];
-          let found = updatedList.find(isMatch);
+          setOrders((prevOrders) => {
+            let updatedList = [...prevOrders];
+            let found = updatedList.find(isMatch);
 
-          if (!found && cachedActiveOrder && isMatch(cachedActiveOrder)) {
-            found = cachedActiveOrder;
-            updatedList.unshift(cachedActiveOrder);
-          }
-
-          if (!found && cachedOrdersList.length > 0) {
-            const matchInCache = cachedOrdersList.find(isMatch);
-            if (matchInCache) {
-              found = matchInCache;
-              updatedList.unshift(matchInCache);
+            if (!found && cachedActiveOrder && isMatch(cachedActiveOrder)) {
+              found = cachedActiveOrder;
+              updatedList.unshift(cachedActiveOrder);
             }
-          }
 
-          if (found) {
-            const updatedOrder: Order = {
-              ...found,
-              paymentStatus: isNotFailed ? 'paid' : found.paymentStatus,
-              orderStatus: isNotFailed ? 'queued' : found.orderStatus,
-              paidAt: isNotFailed ? (found.paidAt || new Date().toISOString()) : found.paidAt,
-              paymentProofDate: isNotFailed ? (found.paymentProofDate || new Date().toISOString()) : found.paymentProofDate,
-              paymentMethod: 'DOKU Checkout (Verified)',
-              progressHistory: [
-                ...(found.progressHistory || []),
-                ...(isNotFailed && found.paymentStatus !== 'paid' ? [{
-                  id: `prf_doku_${Date.now()}`,
-                  timestamp: new Date().toISOString(),
-                  note: `Pembayaran DOKU Berhasil Terverifikasi. Pesanan masuk antrean pengerjaan.`,
-                  workerName: 'DOKU Payment Gateway',
-                  progressPercent: 5
-                }] : [])
-              ]
-            };
+            if (!found && cachedOrdersList.length > 0) {
+              const matchInCache = cachedOrdersList.find(isMatch);
+              if (matchInCache) {
+                found = matchInCache;
+                updatedList.unshift(matchInCache);
+              }
+            }
 
-            saveOrderToFirestore(updatedOrder);
-            try {
-              localStorage.setItem('breakoutops_active_order', JSON.stringify(updatedOrder));
-            } catch {}
+            if (found) {
+              const updatedOrder: Order = {
+                ...found,
+                paymentStatus: 'paid',
+                orderStatus: found.orderStatus === 'pending' || found.orderStatus === 'verifying' ? 'queued' : found.orderStatus,
+                paidAt: found.paidAt || verifiedPaidAt,
+                paymentProofDate: found.paymentProofDate || verifiedPaidAt,
+                paymentMethod: dokuChannelName || 'DOKU Checkout (Verified)',
+                progressHistory: [
+                  ...(found.progressHistory || []),
+                  ...(found.paymentStatus !== 'paid' ? [{
+                    id: `prf_doku_${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    note: `Pembayaran ${dokuChannelName} Berhasil Terverifikasi. Pesanan masuk antrean pengerjaan.`,
+                    workerName: 'DOKU Payment Gateway',
+                    progressPercent: 5
+                  }] : [])
+                ]
+              };
 
-            // Open the Success Paid Invoice Modal so user sees their receipt
-            if (isNotFailed) {
+              saveOrderToFirestore(updatedOrder);
+              try {
+                localStorage.setItem('breakoutops_active_order', JSON.stringify(updatedOrder));
+              } catch {}
+
               setPaymentOrder(updatedOrder);
+              setTrackingInitialQuery(updatedOrder.invoiceNumber);
+
+              return updatedList.map((o) => (isMatch(o) ? updatedOrder : o));
             }
-            setTrackingInitialQuery(updatedOrder.invoiceNumber);
-
-            return updatedList.map((o) => (isMatch(o) ? updatedOrder : o));
+            return prevOrders;
+          });
+        } else {
+          // If not verified as paid yet, keep in pending state and open payment modal for completion
+          let targetOrder = orders.find(isMatch) || (cachedActiveOrder && isMatch(cachedActiveOrder) ? cachedActiveOrder : null);
+          if (targetOrder) {
+            setPaymentOrder(targetOrder);
           }
-
           setTrackingInitialQuery(rawInvoice);
-          return updatedList;
-        });
-
-        // Clean up URL search parameters without reloading page
-        window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } catch (e) {
+        console.warn('Error handling DOKU return:', e);
       }
-    } catch (e) {
-      console.warn('Error parsing return URL params:', e);
-    }
+    };
+
+    handleDokuReturn();
   }, []);
 
   // Save to localStorage when state changes as instant cache
